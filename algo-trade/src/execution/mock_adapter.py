@@ -124,6 +124,13 @@ class MockBrokerAdapter(BrokerAdapter):
 
         self._orders[order_id] = order
 
+        # Update equity: BUY costs capital, SELL returns it.
+        fill_value = order.avg_fill_price * quantity * 100
+        if side.upper() == OrderSide.BUY.value.upper():
+            self._equity -= fill_value
+        else:
+            self._equity += fill_value
+
         log.info(
             "[MOCK BROKER] order placed and filled",
             order_id=order_id,
