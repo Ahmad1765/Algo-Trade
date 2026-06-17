@@ -89,10 +89,12 @@ class TestLoginFlow:
                 "Cookie": f"algo_session={cookie_val}",
             })
             assert ok.status == 200
-            # After logout the cookie should be cleared
-            await client.post("/logout")
-            resp = await client.get("/signals", headers={"Accept": "application/json"})
-            assert resp.status == 401
+            # logout must tell the browser to drop the session cookie
+            resp = await client.post("/logout", allow_redirects=False)
+            assert resp.status == 302
+            set_cookie = resp.headers.get("Set-Cookie", "")
+            assert "algo_session=" in set_cookie
+            assert ('Max-Age=0' in set_cookie) or ('Expires=' in set_cookie) or ('algo_session=""' in set_cookie) or ('algo_session=;' in set_cookie)
 
 
 class TestAuthDisabled:
