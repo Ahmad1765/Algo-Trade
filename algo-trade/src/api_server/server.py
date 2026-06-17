@@ -238,76 +238,147 @@ def create_app(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AlgoTrade Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root{{
-  --bg:#0d0f14;--surface:#141720;--border:#1e2330;--border2:#252c3d;
-  --text:#cdd6f4;--muted:#6c7086;--green:#a6e3a1;--red:#f38ba8;
-  --blue:#89b4fa;--yellow:#f9e2af;--teal:#94e2d5;--lavender:#b4befe;
-  --green-dim:#1e3228;--red-dim:#3b1a20;--blue-dim:#1a2340;
+  --bg:#06070A;--surface:rgba(255,255,255,.025);--surface2:rgba(255,255,255,.05);
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.14);
+  --text:#E7EAF3;--muted:#8A90A6;--dim:#565C72;
+  --green:#2FE6A6;--red:#FF5D73;--blue:#5BA8FF;--yellow:#FFC857;--teal:#34E6A8;--violet:#A78BFA;
+  --green-dim:rgba(47,230,166,.12);--red-dim:rgba(255,93,115,.12);--blue-dim:rgba(91,168,255,.13);
+  --f-display:'Bricolage Grotesque',sans-serif;--f-ui:'Manrope',sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,monospace;--r:16px;
 }}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}}
-.topnav{{background:var(--surface);border-bottom:1px solid var(--border);
-  padding:0 20px;height:52px;display:flex;align-items:center;gap:12px}}
-.topnav-brand{{font-weight:700;font-size:16px;color:var(--blue);letter-spacing:.5px;margin-right:auto}}
-.topnav-brand span{{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}}
-.pill{{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}}
-.pill-green{{background:var(--green-dim);color:var(--green);border-color:var(--green)}}
-.pill-red{{background:var(--red-dim);color:var(--red);border-color:var(--red)}}
-.pill-yellow{{background:#2a200a;color:var(--yellow);border-color:var(--yellow)}}
-.pill-blue{{background:var(--blue-dim);color:var(--blue);border-color:var(--blue)}}
-.live-dot{{width:7px;height:7px;border-radius:50%;background:var(--green);
-  animation:pulse 2s infinite;display:inline-block;margin-right:4px}}
-@keyframes pulse{{0%,100%{{opacity:1;box-shadow:0 0 0 0 rgba(166,227,161,.4)}}
-  50%{{opacity:.6;box-shadow:0 0 0 4px rgba(166,227,161,0)}}}}
-.main{{padding:16px 20px;max-width:1400px;margin:0 auto}}
-.kpi-row{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}}
-.kpi{{background:var(--surface);border:1px solid var(--border);border-radius:10px;
-  padding:14px 16px;position:relative;overflow:hidden}}
-.kpi::before{{content:'';position:absolute;top:0;left:0;right:0;height:2px}}
-.kpi-green::before{{background:var(--green)}}
-.kpi-red::before{{background:var(--red)}}
-.kpi-blue::before{{background:var(--blue)}}
-.kpi-yellow::before{{background:var(--yellow)}}
-.kpi-teal::before{{background:var(--teal)}}
-.kpi-label{{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}}
-.kpi-value{{font-size:22px;font-weight:700;line-height:1}}
-.kpi-sub{{font-size:11px;color:var(--muted);margin-top:4px}}
+html{{scroll-behavior:smooth}}
+body{{font-family:var(--f-ui);background:var(--bg);color:var(--text);min-height:100vh;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;letter-spacing:.1px;position:relative;
+  background-image:
+    radial-gradient(1000px 680px at 8% -10%,rgba(91,168,255,.12),transparent 60%),
+    radial-gradient(900px 640px at 102% -4%,rgba(47,230,166,.09),transparent 56%),
+    radial-gradient(760px 760px at 88% 112%,rgba(167,139,250,.09),transparent 60%);
+  background-attachment:fixed;}}
+body::before{{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask-image:radial-gradient(circle at 50% 20%,#000 35%,transparent 86%);
+  mask-image:radial-gradient(circle at 50% 20%,#000 35%,transparent 86%);}}
+body::after{{content:'';position:fixed;inset:-40%;z-index:0;pointer-events:none;opacity:.6;
+  background:radial-gradient(circle at 30% 38%,rgba(91,168,255,.05),transparent 42%),
+            radial-gradient(circle at 72% 64%,rgba(47,230,166,.045),transparent 42%);
+  animation:drift 28s ease-in-out infinite alternate;}}
+@keyframes drift{{from{{transform:translate(0,0) rotate(0)}}to{{transform:translate(3%,2%) rotate(7deg)}}}}
+
+.topnav{{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+  padding:0 26px;height:64px;background:rgba(10,12,18,.72);
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
+  border-bottom:1px solid var(--border);}}
+.topnav::after{{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(91,168,255,.6),rgba(47,230,166,.6),transparent);
+  background-size:200% 100%;animation:sweep 6s linear infinite;}}
+@keyframes sweep{{from{{background-position:0 0}}to{{background-position:200% 0}}}}
+.brand{{display:flex;align-items:center;gap:12px;margin-right:auto}}
+.logo{{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+  background:linear-gradient(145deg,rgba(91,168,255,.95),rgba(47,230,166,.9));
+  color:#06070A;font-weight:800;font-size:17px;box-shadow:0 6px 20px -6px rgba(91,168,255,.75);}}
+.brand-txt{{display:flex;flex-direction:column;line-height:1.05}}
+.brand-name{{font-family:var(--f-display);font-weight:800;font-size:19px;letter-spacing:-.3px;
+  background:linear-gradient(90deg,#EAF1FF,#9FE9D2);-webkit-background-clip:text;background-clip:text;color:transparent;}}
+.brand-sub{{font-size:10px;color:var(--dim);font-weight:700;letter-spacing:1.8px;text-transform:uppercase}}
+.pill{{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;
+  font-size:11px;font-weight:700;letter-spacing:.4px;font-family:var(--f-mono);
+  border:1px solid var(--border2);background:var(--surface);}}
+.pill-green{{background:var(--green-dim);color:var(--green);border-color:rgba(47,230,166,.45)}}
+.pill-red{{background:var(--red-dim);color:var(--red);border-color:rgba(255,93,115,.45)}}
+.pill-yellow{{background:rgba(255,200,87,.12);color:var(--yellow);border-color:rgba(255,200,87,.45)}}
+.pill-blue{{background:var(--blue-dim);color:var(--blue);border-color:rgba(91,168,255,.45)}}
+.clock{{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:12px;color:var(--muted)}}
+.live-dot{{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;
+  box-shadow:0 0 0 0 rgba(47,230,166,.5);animation:pulse 2s infinite}}
+@keyframes pulse{{0%,100%{{box-shadow:0 0 0 0 rgba(47,230,166,.5)}}50%{{box-shadow:0 0 0 6px rgba(47,230,166,0)}}}}
+
+.main{{position:relative;z-index:1;padding:26px 26px 40px;max-width:1480px;margin:0 auto}}
+.warn-bar{{display:flex;align-items:center;justify-content:center;gap:8px;
+  background:linear-gradient(90deg,rgba(255,200,87,.10),rgba(255,200,87,.04));
+  border:1px solid rgba(255,200,87,.3);color:var(--yellow);
+  padding:11px 16px;font-size:12.5px;font-weight:600;text-align:center;border-radius:12px;
+  margin-bottom:20px;letter-spacing:.3px;}}
+.kpi-row{{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px}}
+.kpi{{position:relative;overflow:hidden;padding:18px 18px 16px;border-radius:var(--r);
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 20px 40px -28px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.04);
+  opacity:0;transform:translateY(12px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards;
+  transition:transform .25s,border-color .25s;}}
+.kpi:hover{{transform:translateY(-3px);border-color:var(--border2)}}
+.kpi::before{{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:.95}}
+.kpi::after{{content:'';position:absolute;width:130px;height:130px;right:-44px;top:-54px;border-radius:50%;
+  filter:blur(38px);opacity:.16;background:var(--blue)}}
+.kpi-blue::before{{background:var(--blue)}} .kpi-blue::after{{background:var(--blue)}}
+.kpi-green::before{{background:var(--green)}} .kpi-green::after{{background:var(--green)}}
+.kpi-red::before{{background:var(--red)}} .kpi-red::after{{background:var(--red)}}
+.kpi-yellow::before{{background:var(--yellow)}} .kpi-yellow::after{{background:var(--yellow)}}
+.kpi-teal::before{{background:var(--teal)}} .kpi-teal::after{{background:var(--teal)}}
+.kpi-label{{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px}}
+.kpi-label::before{{content:'';width:6px;height:6px;border-radius:2px;background:currentColor;opacity:.85}}
+.kpi-value{{font-family:var(--f-mono);font-size:26px;font-weight:700;line-height:1;letter-spacing:-.5px;
+  font-variant-numeric:tabular-nums}}
+.kpi-sub{{font-size:11.5px;color:var(--dim);margin-top:8px;font-weight:500}}
 .pos-green{{color:var(--green)}} .pos-red{{color:var(--red)}}
-.grid2{{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}}
-.grid3{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}}
-@media(max-width:900px){{.grid2,.grid3{{grid-template-columns:1fr}}}}
-.card{{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}}
-.card-hdr{{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}}
-.card-title{{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}}
-.badge{{background:var(--border2);color:var(--muted);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}}
+@keyframes rise{{to{{opacity:1;transform:translateY(0)}}}}
+.kpi:nth-child(1){{animation-delay:.04s}}.kpi:nth-child(2){{animation-delay:.10s}}
+.kpi:nth-child(3){{animation-delay:.16s}}.kpi:nth-child(4){{animation-delay:.22s}}
+.kpi:nth-child(5){{animation-delay:.28s}}.kpi:nth-child(6){{animation-delay:.34s}}
+.grid2{{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}}
+.grid3{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}}
+@media(max-width:920px){{.grid2,.grid3{{grid-template-columns:1fr}}}}
+.card{{position:relative;border-radius:var(--r);padding:20px;background:var(--surface);
+  border:1px solid var(--border);box-shadow:0 24px 50px -32px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.04);
+  opacity:0;transform:translateY(12px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:.3s}}
+.card-hdr{{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}}
+.card-title{{font-family:var(--f-display);font-size:13.5px;font-weight:700;letter-spacing:.2px;color:var(--text)}}
+.badge{{font-family:var(--f-mono);background:var(--surface2);color:var(--muted);font-size:11px;
+  padding:4px 10px;border-radius:999px;font-weight:600;border:1px solid var(--border)}}
 table{{width:100%;border-collapse:collapse}}
-thead th{{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;
-  color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border);text-align:left}}
-tbody td{{padding:7px 10px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}}
+thead th{{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
+  padding:8px 12px;border-bottom:1px solid var(--border);text-align:left}}
+tbody td{{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);
+  font-variant-numeric:tabular-nums}}
 tbody tr:last-child td{{border-bottom:none}}
-tbody tr:hover td{{background:rgba(255,255,255,.03)}}
-.empty{{color:var(--muted);font-style:italic;text-align:center;padding:20px;font-size:13px}}
-.call{{color:var(--green);font-weight:700}} .put{{color:var(--red);font-weight:700}}
+tbody tr{{transition:background .15s}}
+tbody tr:hover td{{background:rgba(255,255,255,.04)}}
+.empty{{color:var(--dim);font-style:italic;text-align:center;padding:28px 20px;font-size:13px}}
+.call{{color:var(--green);font-weight:700;font-family:var(--f-mono)}}
+.put{{color:var(--red);font-weight:700;font-family:var(--f-mono)}}
 .ev-fill{{color:var(--green)}} .ev-reject{{color:var(--red)}} .ev-start{{color:var(--blue)}} .ev-other{{color:var(--muted)}}
 .cb-ok{{color:var(--green)}} .cb-halt{{color:var(--red)}}
-.chart-wrap{{position:relative;height:160px}}
-.warn-bar{{background:#2a200a;border:1px solid var(--yellow);color:var(--yellow);
-  padding:8px 16px;font-size:12px;text-align:center;border-radius:6px;margin-bottom:12px}}
-.footer{{color:var(--muted);font-size:11px;padding:12px 20px;border-top:1px solid var(--border);
-  display:flex;flex-wrap:wrap;gap:8px}}
-.footer a{{color:var(--blue);text-decoration:none}}
+.chart-wrap{{position:relative;height:200px}}
+.footer{{position:relative;z-index:1;color:var(--dim);font-size:11px;padding:18px 26px 32px;margin-top:8px;
+  border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px;align-items:center}}
+.footer .sp{{margin-right:auto}}
+.footer b{{color:var(--muted);font-family:var(--f-mono)}}
+.footer a{{color:var(--muted);text-decoration:none;font-family:var(--f-mono);font-size:11px;
+  padding:5px 11px;border:1px solid var(--border);border-radius:999px;background:var(--surface);transition:all .2s}}
+.footer a:hover{{color:var(--blue);border-color:rgba(91,168,255,.5);background:var(--blue-dim)}}
 </style>
 </head>
 <body>
 
 <nav class="topnav">
-  <span class="topnav-brand">&#9651; AlgoTrade <span>Options Automation</span></span>
+  <div class="brand">
+    <div class="logo">&#9651;</div>
+    <div class="brand-txt">
+      <span class="brand-name">AlgoTrade</span>
+      <span class="brand-sub">Options Automation</span>
+    </div>
+  </div>
   <span id="nav-mkt" class="pill pill-blue">—</span>
   <span id="nav-mode" class="pill pill-yellow">{mode.upper()}</span>
-  <span><span class="live-dot"></span><span id="nav-time" style="font-size:12px;color:var(--muted)">connecting...</span></span>
+  <span class="clock"><span class="live-dot"></span><span id="nav-time">connecting...</span></span>
 </nav>
 
 <div class="main">
@@ -395,7 +466,7 @@ tbody tr:hover td{{background:rgba(255,255,255,.03)}}
 </div><!-- /main -->
 
 <div class="footer">
-  <span>Uptime: <b id="uptime">—</b></span>
+  <span class="sp">&#9651; <b>AlgoTrade</b> &middot; paper-trading demo &middot; uptime <b id="uptime">—</b></span>
   <a href="/health">/health</a>
   <a href="/signals">/signals</a>
   <a href="/positions">/positions</a>
@@ -420,18 +491,19 @@ function setColor(el,v){{el.className=el.className.replace(/pos-(green|red)/g,''
 const pnlCtx=$('pnl-chart').getContext('2d');
 const pnlChart=new Chart(pnlCtx,{{
   type:'line',
-  data:{{labels:[],datasets:[{{label:'Cumulative P&L',data:[],borderColor:'#89b4fa',
-    backgroundColor:'rgba(137,180,250,.08)',fill:true,tension:.3,pointRadius:3,
+  data:{{labels:[],datasets:[{{label:'Cumulative P&L',data:[],borderColor:'#5BA8FF',
+    backgroundColor:'rgba(91,168,255,.13)',fill:true,tension:.35,borderWidth:2,pointRadius:2,
+    pointHoverRadius:5,
     pointBackgroundColor:ctx=>{{
       const v=ctx.dataset.data[ctx.dataIndex]||0;
-      return v>=0?'#a6e3a1':'#f38ba8';
+      return v>=0?'#2FE6A6':'#FF5D73';
     }}
   }}]}},
   options:{{responsive:true,maintainAspectRatio:false,animation:{{duration:300}},
     plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>money(c.parsed.y)}}}}}},
     scales:{{
-      x:{{ticks:{{color:'#6c7086',maxRotation:0,maxTicksLimit:6}},grid:{{color:'#1e2330'}}}},
-      y:{{ticks:{{color:'#6c7086',callback:v=>money(v)}},grid:{{color:'#1e2330'}}}}
+      x:{{ticks:{{color:'#8A90A6',font:{{family:"'JetBrains Mono',monospace",size:10}},maxRotation:0,maxTicksLimit:6}},grid:{{color:'rgba(255,255,255,.05)'}}}},
+      y:{{ticks:{{color:'#8A90A6',font:{{family:"'JetBrains Mono',monospace",size:10}},callback:v=>money(v)}},grid:{{color:'rgba(255,255,255,.05)'}}}}
     }}
   }}
 }});
@@ -443,13 +515,13 @@ const winChart=new Chart(winCtx,{{
   type:'doughnut',
   data:{{labels:['Wins','Losses','No trades'],datasets:[{{
     data:[0,0,1],
-    backgroundColor:['#a6e3a1','#f38ba8','#1e2330'],
-    borderColor:['#a6e3a1','#f38ba8','#1e2330'],
-    borderWidth:1,hoverOffset:4
+    backgroundColor:['#2FE6A6','#FF5D73','rgba(255,255,255,.06)'],
+    borderColor:'rgba(6,7,10,.6)',
+    borderWidth:2,hoverOffset:7
   }}]}},
   options:{{responsive:true,maintainAspectRatio:false,animation:{{duration:300}},
-    cutout:'65%',
-    plugins:{{legend:{{position:'right',labels:{{color:'#6c7086',font:{{size:11}},boxWidth:12}}}},
+    cutout:'68%',
+    plugins:{{legend:{{position:'right',labels:{{color:'#8A90A6',font:{{family:"'Manrope',sans-serif",size:11}},boxWidth:12,usePointStyle:true,pointStyle:'circle'}}}},
       tooltip:{{callbacks:{{label:c=>c.label+': '+c.parsed}}}}}}
   }}
 }});
@@ -577,13 +649,13 @@ function update(d){{
   if(wins+losses>0){{
     winChart.data.labels=['Wins','Losses'];
     winChart.data.datasets[0].data=[wins,losses];
-    winChart.data.datasets[0].backgroundColor=['#a6e3a1','#f38ba8'];
-    winChart.data.datasets[0].borderColor=['#a6e3a1','#f38ba8'];
+    winChart.data.datasets[0].backgroundColor=['#2FE6A6','#FF5D73'];
+    winChart.data.datasets[0].borderColor='rgba(6,7,10,.6)';
   }}else{{
     winChart.data.labels=['No trades'];
     winChart.data.datasets[0].data=[1];
-    winChart.data.datasets[0].backgroundColor=['#1e2330'];
-    winChart.data.datasets[0].borderColor=['#1e2330'];
+    winChart.data.datasets[0].backgroundColor=['rgba(255,255,255,.06)'];
+    winChart.data.datasets[0].borderColor='rgba(6,7,10,.6)';
   }}
   winChart.update('none');
 
