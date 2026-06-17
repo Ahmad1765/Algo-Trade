@@ -142,7 +142,7 @@ def create_app(
             "total_pnl": 0.0, "trade_count": 0, "win_count": 0, "loss_count": 0,
             "win_rate": 0.0, "avg_pnl": 0.0, "best_trade": 0.0, "worst_trade": 0.0,
         }
-        paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 1000.0))
+        paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 25000.0))
         cb_status = DailyCircuitBreaker(cfg, position_store).status
         pending_count = strategy_engine.get_pending_count() if strategy_engine else 0
         return web.json_response({

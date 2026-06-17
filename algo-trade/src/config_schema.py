@@ -115,7 +115,7 @@ class DatabaseConfig(BaseModel):
 
 
 class PaperTradingConfig(BaseModel):
-    initial_capital: float = Field(1000.0, gt=0)
+    initial_capital: float = Field(25000.0, gt=0)
 
 
 class EmailNotifyConfig(BaseModel):

@@ -23,7 +23,7 @@ class DailyCircuitBreaker:
         self._profit_target_pct = float(cb.get("daily_profit_target_pct", 0.30))
         self._loss_limit_pct    = float(cb.get("daily_loss_limit_pct", 0.20))
         self._starting_equity   = float(
-            config.get("paper_trading", {}).get("initial_capital", 1000)
+            config.get("paper_trading", {}).get("initial_capital", 25000)
         )
         self._store         = position_store
         self._halted        = False

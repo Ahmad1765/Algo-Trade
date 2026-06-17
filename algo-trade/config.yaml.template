@@ -29,8 +29,11 @@ indicators:
   lookback_bars: 50
   signal_cooldown_minutes: 30   # min wait before re-signalling same ticker
 
+paper_trading:
+  initial_capital: 25000        # starting cash for paper/simulation mode
+
 risk:
-  max_position_pct: 0.05        # max % of equity per trade
+  max_position_pct: 0.10        # max % of equity per trade (10% of $25k = $2.5k, affords option contracts)
   max_open_positions: 5
   pdt_equity_threshold: 25000
   stop_loss_atr_mult: 1.5

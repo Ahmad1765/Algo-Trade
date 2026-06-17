@@ -8,7 +8,7 @@ Behaviour:
   with a simulated fill price within ±0.5% of the limit price.
 - cancel_order: always succeeds if order is not yet FILLED.
 - get_order_status: reflects the current in-memory state.
-- get_account_equity: returns a fixed configurable value (default $100,000).
+- get_account_equity: returns a configurable value (default $25,000 paper capital).
 
 All methods print human-readable order actions to stdout (visible in paper mode).
 """
@@ -26,7 +26,7 @@ from src.logger import get_logger
 
 log = get_logger(__name__)
 
-_EQUITY = 1000.0
+_EQUITY = 25000.0
 _NEUTRAL_SPOT = 150.0  # baseline underlying price used for delta-based option pricing
 
 

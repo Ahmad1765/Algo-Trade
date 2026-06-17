@@ -131,7 +131,11 @@ class RiskManager:
                 max_capital=max_capital,
                 contract_cost=contract_cost,
             )
-            return False, f"insufficient equity: need ${contract_cost:.2f}/contract, have ${max_capital:.2f}"
+            return False, (
+                f"per-trade budget too small: 1 contract costs ${contract_cost:.2f}, "
+                f"but the max per trade is ${max_capital:.2f} "
+                f"({self._max_pos_pct:.0%} of ${equity:,.0f} equity)"
+            )
 
         plan.position_size = size
         log.info(
