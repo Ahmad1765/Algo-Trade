@@ -8,7 +8,8 @@ services:
     plan: free
     branch: test
     rootDir: algo-trade
-    dockerfilePath: ./Dockerfile
+    # dockerfilePath is relative to the REPO ROOT (not rootDir), per Render spec.
+    dockerfilePath: algo-trade/Dockerfile
     healthCheckPath: /health
     autoDeploy: true
     envVars:
