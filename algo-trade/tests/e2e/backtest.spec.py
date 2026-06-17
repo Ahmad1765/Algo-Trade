@@ -45,7 +45,12 @@ def _mock_backtest_result(
     result.avg_win = 2.50
     result.avg_loss = 1.00
     result.profit_factor = 1.80
-    result.equity_curve = [10000.0, 10200.0, 10150.0, 10400.0]
+    result.equity_curve = [
+        {"bar": 0, "equity": 10000.0},
+        {"bar": 1, "equity": 10200.0},
+        {"bar": 2, "equity": 10150.0},
+        {"bar": 3, "equity": 10400.0},
+    ]
     result.trade_log = [
         {"symbol": "AAPL", "direction": "CALL", "entry": 1.50, "exit": 2.50,
          "pnl": 100.0, "bars_held": 5},

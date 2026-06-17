@@ -13,6 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import hmac
 import html as _html
 import os
 import time
@@ -33,6 +34,7 @@ _MAX_SIGNALS = 100
 # C-1: optional API key protecting POST /config (set CONFIG_API_KEY env var to enable)
 _CONFIG_API_KEY = os.getenv("CONFIG_API_KEY", "")
 _MASK_SENTINEL = "********"
+_CONTRACT_MULTIPLIER = 100  # standard options contract multiplier
 
 # C-2: validation allowlists / ranges
 _ENUM_FIELDS: Dict[str, set] = {
@@ -101,7 +103,7 @@ def create_app(
         for sym, pos in positions.items():
             entry = float(pos.get("entry_price", 0) or 0)
             qty   = int(pos.get("quantity", 0) or 0)
-            cost_basis = round(entry * qty * 100, 2)
+            cost_basis = round(entry * qty * _CONTRACT_MULTIPLIER, 2)
             total_cost += cost_basis
             enriched[sym] = {
                 **pos,
@@ -142,7 +144,7 @@ def create_app(
         }
         paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 1000.0))
         cb_status = DailyCircuitBreaker(cfg, position_store).status
-        pending_count = len(getattr(strategy_engine, "_pending", {})) if strategy_engine else 0
+        pending_count = strategy_engine.get_pending_count() if strategy_engine else 0
         return web.json_response({
             # system
             "uptime_s":          round(time.time() - _START_TIME, 1),
@@ -192,7 +194,7 @@ def create_app(
                 daily_pnl  = position_store.get_daily_pnl() if position_store else 0.0
                 paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 25000.0))
                 cb = DailyCircuitBreaker(cfg, position_store).status
-                pending_count = len(getattr(strategy_engine, "_pending", {})) if strategy_engine else 0
+                pending_count = strategy_engine.get_pending_count() if strategy_engine else 0
 
                 payload = _json.dumps({
                     "market_open":    is_market_open(),
@@ -666,7 +668,7 @@ es.onerror=()=>{{$('nav-time').textContent='reconnecting...';setTimeout(()=>loca
     async def post_config_endpoint(request: web.Request) -> web.Response:
         # C-1: API key auth (enforced only when CONFIG_API_KEY env var is set)
         if _CONFIG_API_KEY:
-            if request.headers.get("X-Api-Key", "") != _CONFIG_API_KEY:
+            if not hmac.compare_digest(request.headers.get("X-Api-Key", ""), _CONFIG_API_KEY):
                 return web.json_response({"error": "unauthorized"}, status=401)
 
         try:
@@ -1060,6 +1062,9 @@ es.onerror=()=>{{$('nav-time').textContent='reconnecting...';setTimeout(()=>loca
 
     async def post_reset(request: web.Request) -> web.Response:
         """Reset all paper trading data (positions, signals, cooldowns, strategy stats, actions)."""
+        if _CONFIG_API_KEY:
+            if not hmac.compare_digest(request.headers.get("X-Api-Key", ""), _CONFIG_API_KEY):
+                return web.json_response({"error": "unauthorized"}, status=401)
         if not position_store:
             return web.json_response({"error": "no persistence store"}, status=503)
         try:
@@ -1155,6 +1160,9 @@ es.onerror=()=>{{$('nav-time').textContent='reconnecting...';setTimeout(()=>loca
 
     async def post_order(request: web.Request) -> web.Response:
         """Place a manual paper trading order and record it to the activity log."""
+        if _CONFIG_API_KEY:
+            if not hmac.compare_digest(request.headers.get("X-Api-Key", ""), _CONFIG_API_KEY):
+                return web.json_response({"error": "unauthorized"}, status=401)
         try:
             body = await request.json()
         except Exception:

@@ -39,6 +39,11 @@ class _RiskParams(NamedTuple):
 _params_cache: Dict[int, Tuple[_IndParams, _RiskParams]] = {}
 
 
+def clear_params_cache() -> None:
+    """Invalidate the params cache — call after config mutation."""
+    _params_cache.clear()
+
+
 def _get_params(config: Dict[str, Any]) -> Tuple[_IndParams, _RiskParams]:
     """Parse indicator/risk config once per config object, then serve from cache.
 

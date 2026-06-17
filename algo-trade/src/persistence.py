@@ -231,10 +231,16 @@ class PositionStore:
     # ------------------------------------------------------------------ #
 
     def add_signal(self, data: Dict[str, Any]) -> None:
+        symbol = data.get("symbol")
+        direction = data.get("direction")
+        if not symbol or not direction:
+            raise ValueError(
+                f"add_signal requires 'symbol' and 'direction', got symbol={symbol!r}, direction={direction!r}"
+            )
         with self.SessionLocal() as session:
             sig = SignalRecord(
-                symbol=data.get("symbol"),
-                direction=data.get("direction"),
+                symbol=symbol,
+                direction=direction,
                 strike=data.get("strike"),
                 expiry=data.get("expiry"),
                 entry=data.get("entry"),

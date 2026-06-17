@@ -55,7 +55,7 @@ class TestNowEt:
         result = mh.now_et()
         # The UTC offset for Eastern time should be -4 or -5 hours (DST/standard)
         offset_hours = result.utcoffset().total_seconds() / 3600
-        assert -6 <= offset_hours <= -4
+        assert -5 <= offset_hours <= -4
 
 
 class TestIsMarketOpen:

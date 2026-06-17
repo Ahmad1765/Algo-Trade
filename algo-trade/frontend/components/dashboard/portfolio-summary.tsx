@@ -44,7 +44,7 @@ export function PortfolioSummary({ masked = false }: PortfolioSummaryProps) {
         symbol:         p.symbol,
         option_symbol:  p.option_symbol,
         direction:      p.direction,
-        cost_basis:     p.cost_basis,
+        cost_basis:     p.cost_basis ?? p.entry_price * p.quantity * 100,
         unrealized_pnl: p.unrealized_pnl,
         color:          PALETTE[i % PALETTE.length],
       }));

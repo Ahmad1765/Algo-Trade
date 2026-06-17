@@ -206,6 +206,7 @@ def load_config(path: Optional[Path] = None, dotenv: Optional[Path] = None) -> D
         _logging.getLogger(__name__).warning(
             "Config validation warning — some values may be invalid: %s", exc
         )
+        raise
 
     _CONFIG = merged
     return merged
@@ -231,6 +232,12 @@ def update_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     # Update in-place so existing references (e.g. RiskManager._config) see the change.
     _CONFIG.clear()
     _CONFIG.update(merged)
+    # Invalidate strategy params cache since config dict was mutated in place.
+    try:
+        from src.strategy_engine.strategies import clear_params_cache
+        clear_params_cache()
+    except ImportError:
+        pass
     # Persist to disk so settings survive restarts
     write_path = _LOADED_PATH or _CONFIG_PATH
     try:
@@ -240,4 +247,5 @@ def update_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         import logging as _logging
         _logging.getLogger(__name__).warning("Failed to persist config to %s: %s", write_path, exc)
+        raise
     return _CONFIG

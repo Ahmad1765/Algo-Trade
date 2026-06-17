@@ -97,6 +97,7 @@ class DailyCircuitBreaker:
 
     @property
     def status(self) -> Dict[str, Any]:
+        self._reset_if_new_day()
         pnl     = self._daily_pnl()
         equity  = self._starting_equity
         return {

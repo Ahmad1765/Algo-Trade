@@ -67,11 +67,13 @@ export function OrderPanel({ onToast }: OrderPanelProps) {
         orderType: form.orderType,
       });
       setConfirmOpen(false);
+      const submittedQty = form.qty;
+      const submittedSymbol = form.symbol;
       setForm(INITIAL);
       if (res.ok) {
         onToast({
           type: "success",
-          message: `${side === "buy" ? "Buy" : "Sell"} order for ${form.qty} ${form.symbol} submitted`,
+          message: `${side === "buy" ? "Buy" : "Sell"} order for ${submittedQty} ${submittedSymbol} submitted`,
         });
       } else {
         onToast({ type: "error", message: res.error ?? "Order failed." });

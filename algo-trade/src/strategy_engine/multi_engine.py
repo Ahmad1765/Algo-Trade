@@ -78,6 +78,10 @@ class MultiStrategyEngine:
             confirm_expire_min=self._confirm_expire_min,
         )
 
+    def get_pending_count(self) -> int:
+        """Return the number of signals currently awaiting confirmation."""
+        return len(self._pending)
+
     # ------------------------------------------------------------------ #
     # Strategy scoring & selection                                         #
     # ------------------------------------------------------------------ #
@@ -145,7 +149,7 @@ class MultiStrategyEngine:
         """Return CALL if SPY > SMA20, PUT if SPY < SMA20, None if unavailable."""
         try:
             bars = await self._market.get_intraday_bars("SPY", interval="1min", limit=25)
-            if not bars or len(bars) < 21:
+            if not bars or len(bars) < 20:
                 return None
             closes = np.asarray([b["close"] for b in bars], dtype=float)
             sma20  = float(closes[-20:].mean())

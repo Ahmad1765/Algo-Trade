@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ScreenerConfig(BaseModel):
@@ -123,7 +123,7 @@ class EmailNotifyConfig(BaseModel):
     provider: str = "smtp"
     api_key: str = ""
     smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
+    smtp_port: int = Field(587, ge=1, le=65535)
     username: str = ""
     password: str = ""
     recipient: str = ""
@@ -142,6 +142,32 @@ class NotificationsConfig(BaseModel):
 class TradingHoursConfig(BaseModel):
     start: str = "09:45"
     end: str = "15:30"
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def validate_time_format(cls, v):
+        import re
+        # PyYAML may parse unquoted HH:MM as sexagesimal integer (e.g. 09:45 → 585)
+        if isinstance(v, (int, float)):
+            total_min = int(v)
+            h, m = divmod(total_min, 60)
+            return f"{h:02d}:{m:02d}"
+        v = str(v)
+        if not re.match(r"^\d{1,2}:\d{2}$", v):
+            raise ValueError(f"Time must be in HH:MM format, got '{v}'")
+        h, m = v.split(":")
+        h, m = int(h), int(m)
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            raise ValueError(f"Invalid time value: '{v}'")
+        return f"{h:02d}:{m:02d}"
+
+    @model_validator(mode="after")
+    def start_before_end(self) -> "TradingHoursConfig":
+        if self.start >= self.end:
+            raise ValueError(
+                f"trading_hours.start ({self.start}) must be before end ({self.end})"
+            )
+        return self
 
 
 class ConfirmationConfig(BaseModel):

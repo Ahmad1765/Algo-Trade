@@ -79,6 +79,11 @@ export function Topbar({ masked, onToggleMask }: TopbarProps) {
         });
         if (!notifOpen) setUnread((n) => n + fresh.length);
       }
+      // Cap seenRef to prevent unbounded memory growth
+      if (seenRef.current.size > 30) {
+        const sorted = [...seenRef.current].sort().reverse().slice(0, 30);
+        seenRef.current = new Set(sorted);
+      }
     } catch {
       // backend unreachable — silent
     }

@@ -49,7 +49,7 @@ mode: paper
 notifications:
   email:
     api_key: ''
-    enabled: true
+    enabled: false
     password: secret
     provider: smtp
     recipient: recv@gmail.com

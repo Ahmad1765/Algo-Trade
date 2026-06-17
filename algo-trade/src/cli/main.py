@@ -71,9 +71,8 @@ async def _run_pipeline(config: Dict[str, Any], mode: str) -> None:
         _update_cfg(db_overrides)
         log.info("loaded config overrides from database")
 
-    # Re-register positions that survived a restart.
-    for opt_sym in position_store.get_positions().keys():
-        risk_manager.register_open(opt_sym)
+    # Note: positions are re-registered with the risk manager inside
+    # order_mgr.recover_open_positions() — no need to register here.
     if position_store.open_count:
         log.info("restored positions from database", count=position_store.open_count)
 

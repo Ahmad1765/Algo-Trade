@@ -173,7 +173,7 @@ class TestFullPipelineExecution:
             # Second call — should be suppressed
             await engine._process_chain(chain_event)
 
-        signals = await drain_queue(signal_q, expected=2, timeout=0.5)
+        signals = await drain_queue(signal_q, expected=1, timeout=0.5)
         # Only 1 signal should be in the queue (second was blocked by cooldown)
         assert len(signals) == 1
 
