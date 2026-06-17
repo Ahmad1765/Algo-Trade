@@ -77,3 +77,29 @@ class TestDashboard:
         async with TestClient(TestServer(make_app())) as client:
             text = await (await client.get("/")).text()
             assert "algotrade" in text.lower() or "algo-trade" in text.lower()
+
+
+class TestDashboardPublishPolish:
+    async def test_paper_banner_present(self, make_app):
+        from aiohttp.test_utils import TestClient, TestServer
+        async with TestClient(TestServer(make_app())) as client:
+            html = await (await client.get("/")).text()
+            assert "📄 PAPER TRADING — simulated orders, not financial advice" in html
+
+    async def test_about_panel_present(self, make_app):
+        from aiohttp.test_utils import TestClient, TestServer
+        async with TestClient(TestServer(make_app())) as client:
+            html = await (await client.get("/")).text()
+            assert 'id="about-panel"' in html
+
+    async def test_responsive_media_query_present(self, make_app):
+        from aiohttp.test_utils import TestClient, TestServer
+        async with TestClient(TestServer(make_app())) as client:
+            html = await (await client.get("/")).text()
+            assert "@media (max-width:760px)" in html
+
+    async def test_state_helper_present(self, make_app):
+        from aiohttp.test_utils import TestClient, TestServer
+        async with TestClient(TestServer(make_app())) as client:
+            html = await (await client.get("/")).text()
+            assert "renderState" in html  # JS loading/empty/error helper

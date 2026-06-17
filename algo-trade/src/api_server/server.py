@@ -419,9 +419,31 @@ tbody tr:hover td{{background:rgba(255,255,255,.04)}}
   .menu-btn{{display:block}}
   .content{{padding:20px 16px 40px;max-width:none}}
 }}
+.paper-banner{{position:sticky;top:0;z-index:50;text-align:center;padding:7px 12px;
+  font-family:var(--f-ui);font-size:12.5px;font-weight:700;letter-spacing:.3px;
+  color:#06070A;background:linear-gradient(90deg,var(--yellow),var(--teal));}}
+#about-panel{{max-width:1100px;margin:14px auto 0;padding:12px 16px;font-size:13px;
+  color:var(--muted);background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);line-height:1.55;}}
+#about-panel strong{{color:var(--text);}}
+.state-msg{{padding:18px;text-align:center;color:var(--dim);font-size:13px;}}
+.state-msg.state-error{{color:var(--red);}}
+@media (max-width:760px){{
+  body{{font-size:13px;}}
+  #about-panel{{margin:12px;}}
+  .paper-banner{{font-size:11px;}}
+  table{{display:block;overflow-x:auto;white-space:nowrap;}}
+  .sidebar{{display:none;}}
+}}
 </style>
 </head>
 <body>
+<div class="paper-banner">📄 PAPER TRADING — simulated orders, not financial advice</div>
+<section id="about-panel">
+  <strong>AlgoTrade</strong> — an educational, event-driven options paper-trading demo.
+  It scans the market, generates RSI/MACD momentum signals, and simulates trades with
+  ATR-based risk. No real orders are placed. Not financial advice.
+</section>
 
 <nav class="topnav">
   <button class="menu-btn" id="menu-btn" aria-label="menu">&#9776;</button>
@@ -587,6 +609,11 @@ tbody tr:hover td{{background:rgba(255,255,255,.04)}}
 <script>
 /* ── helpers ── */
 const $ = id => document.getElementById(id);
+function renderState(el, state, msg){{
+  if(!el) return;
+  const m = {{loading:'Loading…', empty: msg||'No data yet.', error: msg||'Failed to load.'}};
+  el.innerHTML = '<div class="state-msg state-'+state+'">'+m[state]+'</div>';
+}}
 function setText(id,v){{const el=$(id);if(el)el.textContent=v;}}
 function setHtml(id,v){{const el=$(id);if(el)el.innerHTML=v;}}
 function setMoney(id,v){{const el=$(id);if(!el)return;el.textContent=money(v);el.classList.remove('pos-green','pos-red');el.classList.add(Number(v)>=0?'pos-green':'pos-red');}}
