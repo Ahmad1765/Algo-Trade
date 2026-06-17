@@ -364,11 +364,66 @@ tbody tr:hover td{{background:rgba(255,255,255,.04)}}
 .footer a{{color:var(--muted);text-decoration:none;font-family:var(--f-mono);font-size:11px;
   padding:5px 11px;border:1px solid var(--border);border-radius:999px;background:var(--surface);transition:all .2s}}
 .footer a:hover{{color:var(--blue);border-color:rgba(91,168,255,.5);background:var(--blue-dim)}}
+
+/* ── multi-page shell ── */
+.menu-btn{{display:none;background:var(--surface);border:1px solid var(--border);color:var(--text);
+  width:38px;height:38px;border-radius:10px;font-size:16px;cursor:pointer;margin-right:4px}}
+.shell{{position:relative;z-index:1;display:flex;align-items:flex-start;max-width:1560px;margin:0 auto}}
+.sidebar{{position:sticky;top:64px;height:calc(100vh - 64px);width:230px;flex:0 0 230px;
+  padding:18px 14px;display:flex;flex-direction:column;gap:4px;
+  border-right:1px solid var(--border);background:rgba(10,12,18,.4);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}}
+.nav-item{{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;
+  color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:600;letter-spacing:.2px;
+  border:1px solid transparent;transition:all .18s}}
+.nav-item .ni-ic{{font-size:14px;width:18px;text-align:center;opacity:.85}}
+.nav-item:hover{{color:var(--text);background:var(--surface);border-color:var(--border)}}
+.nav-item.active{{color:#06070A;background:linear-gradient(135deg,var(--blue),var(--teal));
+  border-color:transparent;box-shadow:0 8px 20px -10px rgba(91,168,255,.8);font-weight:700}}
+.nav-item.active .ni-ic{{opacity:1}}
+.side-foot{{margin-top:auto;font-size:11px;color:var(--dim);padding:12px 14px;font-family:var(--f-mono)}}
+.side-foot b{{color:var(--muted)}}
+.dot-live{{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);
+  margin-right:5px;animation:pulse 2s infinite}}
+.content{{flex:1;min-width:0;padding:26px 30px 40px;max-width:1330px}}
+.page{{display:none}}
+.page.active{{display:block;animation:fade .35s ease}}
+@keyframes fade{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:translateY(0)}}}}
+.page-head{{margin-bottom:20px}}
+.page-head h1{{font-family:var(--f-display);font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}}
+.page-head p{{color:var(--muted);font-size:13px}}
+.btn{{font-family:var(--f-ui);font-weight:700;font-size:13px;color:#06070A;cursor:pointer;
+  padding:11px 22px;border:none;border-radius:11px;letter-spacing:.2px;
+  background:linear-gradient(135deg,var(--blue),var(--teal));
+  box-shadow:0 10px 24px -12px rgba(91,168,255,.9);transition:transform .15s,opacity .15s}}
+.btn:hover{{transform:translateY(-1px)}}
+.btn:disabled{{opacity:.5;cursor:not-allowed;transform:none}}
+.bt-controls{{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}}
+.bt-controls label{{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}}
+.bt-controls input,.bt-controls select{{font-family:var(--f-mono);font-size:13px;color:var(--text);
+  background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;min-width:160px;outline:none}}
+.bt-controls input:focus,.bt-controls select:focus{{border-color:rgba(91,168,255,.6)}}
+.bt-status{{margin-top:14px;font-size:12.5px;font-family:var(--f-mono);color:var(--muted);min-height:18px}}
+.bt-status.running{{color:var(--blue)}} .bt-status.ok{{color:var(--green)}} .bt-status.err{{color:var(--red)}}
+#bt-results{{margin-top:16px;display:flex;flex-direction:column;gap:16px}}
+.cb-pill{{display:inline-flex;align-items:center;font-family:var(--f-mono);font-size:13px;font-weight:700;
+  padding:9px 15px;border-radius:999px;border:1px solid var(--border2)}}
+.raw{{font-family:var(--f-mono);font-size:12px;line-height:1.6;color:var(--muted);white-space:pre-wrap;
+  word-break:break-word;max-height:440px;overflow:auto;margin:0}}
+@media(max-width:880px){{
+  .sidebar{{position:fixed;left:0;top:64px;z-index:30;transform:translateX(-110%);
+    transition:transform .25s;box-shadow:0 20px 60px rgba(0,0,0,.6)}}
+  .sidebar.open{{transform:translateX(0)}}
+  .menu-btn{{display:block}}
+  .content{{padding:20px 16px 40px;max-width:none}}
+}}
 </style>
 </head>
 <body>
 
 <nav class="topnav">
+  <button class="menu-btn" id="menu-btn" aria-label="menu">&#9776;</button>
   <div class="brand">
     <div class="logo">&#9651;</div>
     <div class="brand-txt">
@@ -381,102 +436,159 @@ tbody tr:hover td{{background:rgba(255,255,255,.04)}}
   <span class="clock"><span class="live-dot"></span><span id="nav-time">connecting...</span></span>
 </nav>
 
-<div class="main">
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="nav-item" href="#/overview"    data-route="overview"><span class="ni-ic">&#9783;</span>Overview</a>
+    <a class="nav-item" href="#/positions"   data-route="positions"><span class="ni-ic">&#9638;</span>Positions</a>
+    <a class="nav-item" href="#/signals"     data-route="signals"><span class="ni-ic">&#9889;</span>Signals</a>
+    <a class="nav-item" href="#/activity"    data-route="activity"><span class="ni-ic">&#8801;</span>Activity</a>
+    <a class="nav-item" href="#/performance" data-route="performance"><span class="ni-ic">&#9650;</span>Performance</a>
+    <a class="nav-item" href="#/backtest"    data-route="backtest"><span class="ni-ic">&#8635;</span>Backtest</a>
+    <a class="nav-item" href="#/strategies"  data-route="strategies"><span class="ni-ic">&#9670;</span>Strategies</a>
+    <a class="nav-item" href="#/settings"    data-route="settings"><span class="ni-ic">&#9881;</span>Settings</a>
+    <div class="side-foot"><span class="dot-live"></span>live &middot; uptime <b id="uptime">—</b></div>
+  </aside>
+
+  <main class="content">
 {"" if mode=="automated" else f'<div class="warn-bar">&#9888; {mode.upper()} MODE — {"No real orders are placed" if mode=="paper" else "Manual approval required"}</div>'}
 
-<!-- KPI row -->
-<div class="kpi-row">
-  <div class="kpi kpi-blue">
-    <div class="kpi-label">Account Value</div>
-    <div class="kpi-value" id="k-capital">—</div>
-    <div class="kpi-sub">Starting: ${paper_capital:,.0f}</div>
-  </div>
-  <div class="kpi kpi-green">
-    <div class="kpi-label">Total P&amp;L</div>
-    <div class="kpi-value" id="k-total-pnl">—</div>
-    <div class="kpi-sub" id="k-total-pnl-sub">all time</div>
-  </div>
-  <div class="kpi kpi-teal">
-    <div class="kpi-label">Today&apos;s P&amp;L</div>
-    <div class="kpi-value" id="k-daily-pnl">—</div>
-    <div class="kpi-sub" id="k-daily-pnl-sub">today</div>
-  </div>
-  <div class="kpi kpi-yellow">
-    <div class="kpi-label">Win Rate</div>
-    <div class="kpi-value" id="k-winrate">—</div>
-    <div class="kpi-sub" id="k-trades">0 trades</div>
-  </div>
-  <div class="kpi kpi-blue">
-    <div class="kpi-label">Open Positions</div>
-    <div class="kpi-value" id="k-positions">—</div>
-    <div class="kpi-sub" id="k-pending">0 pending signals</div>
-  </div>
-  <div class="kpi kpi-green">
-    <div class="kpi-label">Best Trade</div>
-    <div class="kpi-value" id="k-best">—</div>
-    <div class="kpi-sub" id="k-worst">worst: —</div>
-  </div>
-</div>
-
-<!-- P&L chart + circuit breaker -->
-<div class="grid2">
-  <div class="card">
-    <div class="card-hdr">
-      <span class="card-title">P&amp;L History</span>
-      <span class="badge" id="cb-status">Circuit Breaker: —</span>
+  <!-- ===================== OVERVIEW ===================== -->
+  <section id="page-overview" class="page active">
+    <div class="page-head"><h1>Overview</h1><p>Live paper-trading simulation — refreshes every 5 seconds</p></div>
+    <div class="kpi-row">
+      <div class="kpi kpi-blue"><div class="kpi-label">Account Value</div><div class="kpi-value" id="k-capital">—</div><div class="kpi-sub">Starting: ${paper_capital:,.0f}</div></div>
+      <div class="kpi kpi-green"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="k-total-pnl">—</div><div class="kpi-sub" id="k-total-pnl-sub">all time</div></div>
+      <div class="kpi kpi-teal"><div class="kpi-label">Today&apos;s P&amp;L</div><div class="kpi-value" id="k-daily-pnl">—</div><div class="kpi-sub" id="k-daily-pnl-sub">today</div></div>
+      <div class="kpi kpi-yellow"><div class="kpi-label">Win Rate</div><div class="kpi-value" id="k-winrate">—</div><div class="kpi-sub" id="k-trades">0 trades</div></div>
+      <div class="kpi kpi-blue"><div class="kpi-label">Open Positions</div><div class="kpi-value" id="k-positions">—</div><div class="kpi-sub" id="k-pending">0 pending signals</div></div>
+      <div class="kpi kpi-green"><div class="kpi-label">Best Trade</div><div class="kpi-value" id="k-best">—</div><div class="kpi-sub" id="k-worst">worst: —</div></div>
     </div>
-    <div class="chart-wrap"><canvas id="pnl-chart"></canvas></div>
-  </div>
-  <div class="card">
-    <div class="card-hdr">
-      <span class="card-title">Trade Stats</span>
-      <span class="badge" id="db-badge">DB: —</span>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">P&amp;L History</span><span class="badge" id="cb-status">Circuit Breaker: —</span></div>
+        <div class="chart-wrap"><canvas id="pnl-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Win / Loss</span><span class="badge" id="db-badge">DB: —</span></div>
+        <div class="chart-wrap"><canvas id="win-chart"></canvas></div>
+      </div>
     </div>
-    <div class="chart-wrap"><canvas id="win-chart"></canvas></div>
-  </div>
-</div>
-
-<!-- Positions + Signals -->
-<div class="grid2">
-  <div class="card">
-    <div class="card-hdr">
-      <span class="card-title">Open Positions</span>
-      <span class="badge" id="pos-badge">0</span>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Open Positions</span><span class="badge" id="pos-badge">0</span></div>
+        <div id="positions-body"><p class="empty">No open positions.</p></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Recent Signals</span><span class="badge" id="sig-badge">0</span></div>
+        <div id="signals-body"><p class="empty">No signals yet.</p></div>
+      </div>
     </div>
-    <div id="positions-body"><p class="empty">No open positions.</p></div>
-  </div>
-  <div class="card">
-    <div class="card-hdr">
-      <span class="card-title">Recent Signals</span>
-      <span class="badge" id="sig-badge">0</span>
+  </section>
+
+  <!-- ===================== POSITIONS ===================== -->
+  <section id="page-positions" class="page">
+    <div class="page-head"><h1>Positions</h1><p>Every currently open simulated position with its trade plan</p></div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Open Positions</span><span class="badge" id="pos-full-badge">0</span></div>
+      <div id="positions-full-body"><p class="empty">No open positions.</p></div>
     </div>
-    <div id="signals-body"><p class="empty">No signals yet.</p></div>
+  </section>
+
+  <!-- ===================== SIGNALS ===================== -->
+  <section id="page-signals" class="page">
+    <div class="page-head"><h1>Signals</h1><p>Momentum signals produced by the strategy engine (RSI + MACD &amp; more)</p></div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Signal Feed</span><span class="badge" id="sig-full-badge">0</span></div>
+      <div id="signals-full-body"><p class="empty">No signals yet.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== ACTIVITY ===================== -->
+  <section id="page-activity" class="page">
+    <div class="page-head"><h1>Activity</h1><p>System event log — starts, fills, rejects and resets</p></div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Activity Log</span><span class="badge" id="act-full-badge">0</span></div>
+      <div id="activity-full-body"><p class="empty">No activity yet.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== PERFORMANCE ===================== -->
+  <section id="page-performance" class="page">
+    <div class="page-head"><h1>Performance</h1><p>Aggregate results of the running simulation</p></div>
+    <div class="kpi-row">
+      <div class="kpi kpi-blue"><div class="kpi-label">Account Value</div><div class="kpi-value" id="p-acct">—</div></div>
+      <div class="kpi kpi-green"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="p-total">—</div></div>
+      <div class="kpi kpi-teal"><div class="kpi-label">Today&apos;s P&amp;L</div><div class="kpi-value" id="p-daily">—</div></div>
+      <div class="kpi kpi-yellow"><div class="kpi-label">Win Rate</div><div class="kpi-value" id="p-wr">—</div></div>
+      <div class="kpi kpi-blue"><div class="kpi-label">Total Trades</div><div class="kpi-value" id="p-trades">—</div></div>
+      <div class="kpi kpi-green"><div class="kpi-label">Wins</div><div class="kpi-value pos-green" id="p-wins">—</div></div>
+      <div class="kpi kpi-red"><div class="kpi-label">Losses</div><div class="kpi-value pos-red" id="p-losses">—</div></div>
+      <div class="kpi kpi-green"><div class="kpi-label">Best Trade</div><div class="kpi-value" id="p-best">—</div></div>
+      <div class="kpi kpi-red"><div class="kpi-label">Worst Trade</div><div class="kpi-value" id="p-worst">—</div></div>
+      <div class="kpi kpi-teal"><div class="kpi-label">Avg P&amp;L / Trade</div><div class="kpi-value" id="p-avg">—</div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Circuit Breaker</span></div>
+      <span class="cb-pill cb-ok" id="p-cb">—</span>
+    </div>
+  </section>
+
+  <!-- ===================== BACKTEST ===================== -->
+  <section id="page-backtest" class="page">
+    <div class="page-head"><h1>Backtest</h1><p>Run a historical simulation of the strategy on real price history</p></div>
+    <div class="card">
+      <div class="bt-controls">
+        <label>Symbol<input id="bt-symbol" value="SPY" maxlength="6" autocomplete="off"></label>
+        <label>Period<select id="bt-period">
+          <option>3 Months</option><option>6 Months</option>
+          <option selected>1 Year</option><option>2 Years</option><option>5 Years</option>
+        </select></label>
+        <button id="bt-run" class="btn">&#8635; Run Simulation</button>
+      </div>
+      <div id="bt-status" class="bt-status"></div>
+    </div>
+    <div id="bt-results" style="display:none">
+      <div class="kpi-row" id="bt-summary"></div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Equity Curve</span><span class="badge" id="bt-meta">—</span></div>
+        <div class="chart-wrap" style="height:260px"><canvas id="bt-chart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== STRATEGIES ===================== -->
+  <section id="page-strategies" class="page">
+    <div class="page-head"><h1>Strategies</h1><p>The momentum &amp; mean-reversion models wired into the engine</p></div>
+    <div id="strategies-body"><p class="empty">Loading strategies&hellip;</p></div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section id="page-settings" class="page">
+    <div class="page-head"><h1>Settings</h1><p>System configuration (read-only)</p></div>
+    <div class="kpi-row" id="settings-tiles"></div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Raw configuration</span></div>
+      <pre id="settings-raw" class="raw">Loading&hellip;</pre>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span class="sp">&#9651; <b>AlgoTrade</b> &middot; paper-trading demo</span>
+    <a href="/health">/health</a>
+    <a href="/signals">/signals</a>
+    <a href="/positions">/positions</a>
+    <a href="/metrics">/metrics</a>
+    <a href="/status">/status</a>
   </div>
-</div>
-
-<!-- Activity log -->
-<div class="card">
-  <div class="card-hdr">
-    <span class="card-title">Activity Log</span>
-    <span class="badge" id="act-badge">0</span>
-  </div>
-  <div id="activity-body"><p class="empty">No activity yet.</p></div>
-</div>
-
-</div><!-- /main -->
-
-<div class="footer">
-  <span class="sp">&#9651; <b>AlgoTrade</b> &middot; paper-trading demo &middot; uptime <b id="uptime">—</b></span>
-  <a href="/health">/health</a>
-  <a href="/signals">/signals</a>
-  <a href="/positions">/positions</a>
-  <a href="/metrics">/metrics</a>
-  <a href="/status">/status</a>
+  </main>
 </div>
 
 <script>
 /* ── helpers ── */
 const $ = id => document.getElementById(id);
+function setText(id,v){{const el=$(id);if(el)el.textContent=v;}}
+function setHtml(id,v){{const el=$(id);if(el)el.innerHTML=v;}}
+function setMoney(id,v){{const el=$(id);if(!el)return;el.textContent=money(v);el.classList.remove('pos-green','pos-red');el.classList.add(Number(v)>=0?'pos-green':'pos-red');}}
 function esc(v){{const d=document.createElement('div');d.textContent=String(v??'—');return d.textContent}}
 function fmt(ts){{return ts?String(ts).slice(0,19).replace('T',' '):'—'}}
 function money(v){{
@@ -659,17 +771,139 @@ function update(d){{
   }}
   winChart.update('none');
 
-  /* tables */
+  /* tables — overview mini + dedicated pages */
   const posKeys=Object.keys(d.positions||{{}});
-  $('pos-badge').textContent=posKeys.length;
-  $('positions-body').innerHTML=renderPositions(d.positions);
+  const posHtml=renderPositions(d.positions);
+  setText('pos-badge',posKeys.length); setHtml('positions-body',posHtml);
+  setText('pos-full-badge',posKeys.length); setHtml('positions-full-body',posHtml);
 
-  $('sig-badge').textContent=(d.signals||[]).length;
-  $('signals-body').innerHTML=renderSignals(d.signals);
+  const sigHtml=renderSignals(d.signals);
+  setText('sig-badge',(d.signals||[]).length); setHtml('signals-body',sigHtml);
+  setText('sig-full-badge',(d.signals||[]).length); setHtml('signals-full-body',sigHtml);
 
-  $('act-badge').textContent=(d.activity||[]).length;
-  $('activity-body').innerHTML=renderActivity(d.activity);
+  const actHtml=renderActivity(d.activity);
+  setText('act-full-badge',(d.activity||[]).length); setHtml('activity-full-body',actHtml);
+
+  paintPerf(d);
 }}
+
+/* ── performance page ── */
+function paintPerf(d){{
+  const cap=d.paper_capital||25000, total=d.total_pnl||0;
+  setText('p-acct','$'+(cap+total).toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}}));
+  setMoney('p-total',total);
+  setMoney('p-daily',d.daily_pnl||0);
+  setText('p-wr',pct(d.win_rate||0));
+  setText('p-trades',d.trade_count||0);
+  setText('p-wins',d.win_count||0);
+  setText('p-losses',d.loss_count||0);
+  setMoney('p-best',d.best_trade||0);
+  setMoney('p-worst',d.worst_trade||0);
+  setMoney('p-avg',d.avg_pnl||0);
+  const cb=d.circuit_breaker||{{}};
+  const el=$('p-cb');
+  if(el){{el.textContent=cb.halted?('HALTED — '+(cb.halt_reason||'daily limit hit')):'Active — trading allowed';
+    el.className='cb-pill '+(cb.halted?'cb-halt':'cb-ok');}}
+}}
+
+/* ── router ── */
+const ROUTES=['overview','positions','signals','activity','performance','backtest','strategies','settings'];
+function go(){{
+  let r=location.hash.replace('#/','').replace('#','')||'overview';
+  if(!ROUTES.includes(r))r='overview';
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+r));
+  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active',a.dataset.route===r));
+  if(r==='strategies')loadStrategies();
+  if(r==='settings')loadSettings();
+  const c=document.querySelector('.content');if(c)c.scrollTop=0;
+  const sb=$('sidebar');if(sb)sb.classList.remove('open');
+}}
+window.addEventListener('hashchange',go);
+const mb=$('menu-btn');if(mb)mb.addEventListener('click',()=>$('sidebar').classList.toggle('open'));
+
+/* ── backtest (historical simulation) ── */
+let btChart=null;
+async function runBacktest(){{
+  const sym=($('bt-symbol').value||'SPY').toUpperCase().trim();
+  const period=$('bt-period').value;
+  const st=$('bt-status'), res=$('bt-results');
+  st.textContent='Running simulation on '+sym+' ('+period+')…'; st.className='bt-status running';
+  $('bt-run').disabled=true;
+  try{{
+    const r=await fetch('/backtest/run',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{symbol:sym,period:period}})}});
+    const data=await r.json();
+    if(!r.ok||data.error)throw new Error(data.error||('HTTP '+r.status));
+    renderBacktest(data);
+    st.textContent='✓ Simulation complete — '+sym+' · '+period; st.className='bt-status ok';
+  }}catch(e){{st.textContent='✗ '+e.message; st.className='bt-status err'; if(res)res.style.display='none';}}
+  finally{{$('bt-run').disabled=false;}}
+}}
+function renderBacktest(d){{
+  const res=$('bt-results'); res.style.display='flex';
+  setText('bt-meta',(d.symbol||'')+' · '+(d.period||''));
+  const skip=new Set(['equity_curve','symbol','period','trades']);
+  let tiles='';
+  for(const k of Object.keys(d)){{
+    if(skip.has(k))continue;
+    let v=d[k],val=v;
+    if(typeof v==='number'){{val=/pct|rate|return|drawdown/i.test(k)?(v.toFixed(2)+'%'):(Number.isInteger(v)?v:v.toFixed(2));}}
+    const cls=(typeof v==='number'&&/pnl|return|profit/i.test(k))?(v>=0?'pos-green':'pos-red'):'';
+    tiles+='<div class="kpi kpi-blue"><div class="kpi-label">'+esc(k.replace(/_/g,' '))+'</div><div class="kpi-value '+cls+'" style="font-size:20px">'+esc(val)+'</div></div>';
+  }}
+  setHtml('bt-summary',tiles||'<p class="empty">No summary returned.</p>');
+  const ec=d.equity_curve||[];
+  if(btChart)btChart.destroy();
+  btChart=new Chart($('bt-chart').getContext('2d'),{{
+    type:'line',
+    data:{{labels:ec.map(p=>p.date),datasets:[{{label:'Equity',data:ec.map(p=>p.equity),
+      borderColor:'#5BA8FF',backgroundColor:'rgba(91,168,255,.13)',fill:true,tension:.25,borderWidth:2,pointRadius:0}}]}},
+    options:{{responsive:true,maintainAspectRatio:false,
+      plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>'$'+c.parsed.y.toLocaleString()}}}}}},
+      scales:{{x:{{ticks:{{color:'#8A90A6',maxTicksLimit:8,font:{{family:"'JetBrains Mono',monospace",size:10}}}},grid:{{color:'rgba(255,255,255,.05)'}}}},
+        y:{{ticks:{{color:'#8A90A6',font:{{family:"'JetBrains Mono',monospace",size:10}},callback:v=>'$'+v.toLocaleString()}},grid:{{color:'rgba(255,255,255,.05)'}}}}}}
+    }}
+  }});
+}}
+const btBtn=$('bt-run');if(btBtn)btBtn.addEventListener('click',runBacktest);
+
+/* ── strategies ── */
+async function loadStrategies(){{
+  try{{
+    const d=await (await fetch('/strategies')).json();
+    let h='<div class="kpi-row">'
+      +'<div class="kpi kpi-green"><div class="kpi-label">Engine</div><div class="kpi-value" style="color:var(--green);font-size:20px">'+(d.is_active?'ACTIVE':'IDLE')+'</div></div>'
+      +'<div class="kpi kpi-blue"><div class="kpi-label">Total Signals</div><div class="kpi-value">'+(d.total_signals||0)+'</div></div>'
+      +'<div class="kpi kpi-teal"><div class="kpi-label">Call Signals</div><div class="kpi-value pos-green">'+(d.call_signals||0)+'</div></div>'
+      +'<div class="kpi kpi-red"><div class="kpi-label">Put Signals</div><div class="kpi-value pos-red">'+(d.put_signals||0)+'</div></div>'
+      +'</div>';
+    h+='<div class="card"><div class="card-hdr"><span class="card-title">Strategy Models</span><span class="badge">'+((d.strategies||[]).length)+'</span></div>'
+      +'<table><thead><tr><th>Strategy</th><th>Description</th><th>Signals</th><th>Trades</th><th>Win&nbsp;Rate</th><th>P&amp;L</th></tr></thead><tbody>';
+    for(const s of (d.strategies||[])){{
+      h+='<tr><td><b>'+esc(s.name)+'</b></td><td style="color:var(--muted);font-size:12px">'+esc(s.description)+'</td>'
+        +'<td>'+(s.signals||0)+'</td><td>'+(s.trades||0)+'</td><td>'+pct(s.win_rate||0)+'</td>'
+        +'<td class="'+((s.total_pnl||0)>=0?'pos-green':'pos-red')+'">'+money(s.total_pnl||0)+'</td></tr>';
+    }}
+    h+='</tbody></table></div>';
+    setHtml('strategies-body',h);
+  }}catch(e){{setHtml('strategies-body','<p class="empty">Failed to load strategies: '+esc(e.message)+'</p>');}}
+}}
+
+/* ── settings ── */
+async function loadSettings(){{
+  try{{
+    const st=await (await fetch('/status')).json();
+    let cfg={{}};
+    try{{cfg=await (await fetch('/config')).json();}}catch(e){{}}
+    const tiles=[['Mode',(st.mode||'—').toUpperCase()],['Broker',(st.broker||'—').toUpperCase()],
+      ['Market',st.market_open?'OPEN':'CLOSED'],['Database',st.database_connected?'Connected':'Error'],
+      ['Open Positions',st.open_positions==null?'—':st.open_positions],['Uptime',(st.uptime_s||0)+'s']];
+    setHtml('settings-tiles',tiles.map(t=>'<div class="kpi kpi-blue"><div class="kpi-label">'+t[0]+'</div><div class="kpi-value" style="font-size:18px">'+esc(t[1])+'</div></div>').join(''));
+    const raw=(cfg&&Object.keys(cfg).length)?cfg:st;
+    setText('settings-raw',JSON.stringify(raw,null,2));
+  }}catch(e){{setText('settings-raw','Failed to load settings: '+e.message);}}
+}}
+
+go();
 
 const es=new EventSource('/stream');
 es.onmessage=ev=>{{try{{update(JSON.parse(ev.data))}}catch(err){{console.error(err)}}}};
