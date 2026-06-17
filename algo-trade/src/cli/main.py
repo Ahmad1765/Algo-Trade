@@ -149,6 +149,8 @@ async def _run_pipeline(config: Dict[str, Any], mode: str) -> None:
     api_cfg = config.get("api_server", {})
     # Railway injects PORT; respect it over the config file value.
     api_port = int(os.environ.get("PORT") or os.environ.get("API_PORT") or api_cfg.get("port", 8181))
+    from src.api_server import auth as _auth
+    _auth.assert_auth_config()
     app = create_app(risk_manager, _signal_store, position_store, market_adapter, _action_store, broker_adapter, strategy_engine=engine)
 
     log.info("pipeline starting", mode=mode)

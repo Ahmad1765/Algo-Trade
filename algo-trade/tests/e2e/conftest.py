@@ -8,8 +8,10 @@ Design principles:
   - PositionStore always writes to pytest's tmp_path.
   - Each fixture creates a clean slate; no global state bleeds between tests.
 """
-
 from __future__ import annotations
+
+import os
+os.environ.setdefault("DEV_MODE", "1")  # existing specs run with auth disabled
 
 import json
 from pathlib import Path

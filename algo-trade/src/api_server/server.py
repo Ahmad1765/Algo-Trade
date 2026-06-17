@@ -25,6 +25,7 @@ from aiohttp import web
 from src.config import get_config, update_config, deep_merge
 from src.logger import get_logger
 from src.market_hours import is_market_open, now_et
+from src.api_server import auth as _auth
 
 log = get_logger(__name__)
 
@@ -1562,10 +1563,83 @@ es.onerror=()=>{{$('nav-time').textContent='reconnecting...';setTimeout(()=>loca
             })
         return web.json_response({"pending": result})
 
+    # ── Middlewares ───────────────────────────────────────────────────────
+    @web.middleware
+    async def error_middleware(request: web.Request, handler):
+        try:
+            return await handler(request)
+        except web.HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001 — last-resort guard
+            log.error(
+                "unhandled_request_error",
+                method=request.method,
+                path=request.path,
+                error=str(exc),
+            )
+            return web.json_response({"error": "internal server error"}, status=500)
+
+    @web.middleware
+    async def auth_middleware(request: web.Request, handler):
+        if not _auth.auth_enabled() or request.path in _auth.EXEMPT_PATHS:
+            return await handler(request)
+        subject = _auth.verify_session(request.cookies.get(_auth.COOKIE_NAME))
+        if subject is not None:
+            return await handler(request)
+        if "text/html" in request.headers.get("Accept", ""):
+            raise web.HTTPFound("/login")
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    def _login_html(error: str = "") -> str:
+        msg = f'<p class="err">{_html.escape(error)}</p>' if error else ""
+        return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · AlgoTrade</title>
+<style>body{{font-family:system-ui,sans-serif;background:#06070A;color:#E7EAF3;display:flex;
+min-height:100vh;align-items:center;justify-content:center;margin:0}}
+form{{background:rgba(255,255,255,.04);padding:32px;border:1px solid rgba(255,255,255,.1);
+border-radius:16px;width:300px}}h1{{font-size:18px;margin:0 0 4px}}
+p.sub{{color:#8A90A6;font-size:13px;margin:0 0 20px}}input{{width:100%;padding:11px 13px;
+border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0d0f15;color:#E7EAF3;
+font-size:14px;box-sizing:border-box}}button{{width:100%;margin-top:14px;padding:11px;
+border:0;border-radius:10px;background:#5BA8FF;color:#06070A;font-weight:700;cursor:pointer}}
+p.err{{color:#FF5D73;font-size:13px;margin:12px 0 0}}</style></head>
+<body><form method="post" action="/login"><h1>AlgoTrade</h1>
+<p class="sub">📄 Paper-trading dashboard — sign in</p>
+<input type="password" name="password" placeholder="Password" autofocus required>
+<button type="submit">Sign in</button>{msg}</form></body></html>"""
+
+    async def login_page(request: web.Request) -> web.Response:
+        return web.Response(text=_login_html(), content_type="text/html")
+
+    async def do_login(request: web.Request) -> web.Response:
+        data = await request.post()
+        subject = _auth.verify_credentials(None, str(data.get("password", "")))
+        if subject is None:
+            return web.Response(
+                text=_login_html("Incorrect password."),
+                content_type="text/html",
+                status=401,
+            )
+        secure = not _auth._truthy(os.getenv("DEV_MODE"))
+        resp = web.Response(status=302, headers={"Location": "/"})
+        resp.set_cookie(
+            _auth.COOKIE_NAME, _auth.sign_session(subject),
+            httponly=True, secure=secure, samesite="Lax", max_age=7 * 24 * 3600,
+        )
+        return resp
+
+    async def do_logout(request: web.Request) -> web.Response:
+        resp = web.Response(status=302, headers={"Location": "/login"})
+        resp.del_cookie(_auth.COOKIE_NAME)
+        return resp
+
     # ── Router ──────────────────────────────────────────────────────────────
 
-    app = web.Application()
+    app = web.Application(middlewares=[error_middleware, auth_middleware])
     app.router.add_get("/health",           health)
+    app.router.add_get("/login",            login_page)
+    app.router.add_post("/login",           do_login)
+    app.router.add_post("/logout",          do_logout)
     app.router.add_get("/signals",          get_signals)
     app.router.add_get("/positions",        get_positions)
     app.router.add_get("/metrics",          get_metrics)
