@@ -9,6 +9,29 @@
 
 ---
 
+## 🚀 Live Demo
+
+**Live dashboard:** <https://algo-trade-dashboard.onrender.com> &nbsp;·&nbsp; paper-trading only
+
+![AlgoTrade dashboard](docs/screenshot-dashboard.png)
+
+> The live demo runs in **paper mode** — orders are simulated, no real money moves.
+> Access is password-protected. The free Render dyno may take ~30s to wake on first hit.
+
+### Deploy your own
+
+1. Fork this repo and connect it to Render — the included [`render.yaml`](../render.yaml) is a one-click Blueprint.
+2. Create a free [Supabase](https://supabase.com) project and copy its **direct** connection string (port `5432`, then append `?sslmode=require`).
+3. In Render → service → Environment, set:
+   - `DATABASE_URL` — the Supabase connection string
+   - `DASHBOARD_PASSWORD` — a long random value (this gates the dashboard)
+   - `SESSION_SECRET` — another long random value (signs session cookies)
+4. Deploy. Optionally add a free uptime monitor pinging `/health` every ~10 min to avoid cold starts.
+
+> The server **fails fast on boot** if `DASHBOARD_PASSWORD`/`SESSION_SECRET` are unset (so a public deploy can never launch unauthenticated). For local development, set `DEV_MODE=1` to run without auth.
+
+---
+
 ## Overview
 
 Algo-Trade is a production-grade, event-driven algorithmic options-trading system
