@@ -669,7 +669,7 @@ In `render.yaml`, under the existing `envVars:` list, append:
 
 - [ ] **Step 3: Verify the blueprint parses**
 
-Run: `cd "D:\Jimmy Stock Automation" && python -c "import yaml,sys; yaml.safe_load(open('render.yaml')); print('render.yaml OK')"`
+Run: `python -c "import yaml,sys; yaml.safe_load(open('render.yaml')); print('render.yaml OK')"`
 Expected: `render.yaml OK`
 
 - [ ] **Step 4: Commit**

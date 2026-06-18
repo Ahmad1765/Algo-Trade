@@ -660,4 +660,4 @@ except PermissionError:
     out_path = out_dir / f"Algo-Trade-Simulation-and-Modeling-{time.strftime('%H%M%S')}.pptx"
     prs.save(str(out_path))
     print("(original file was locked/open in PowerPoint — wrote a new copy)")
-print(f"Saved: {out_path}  ({len(prs.slides.__iter__.__self__._sldIdLst)} slides)")
+print(f"Saved: {out_path}  ({len(prs.slides)} slides)")
