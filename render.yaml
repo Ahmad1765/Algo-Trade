@@ -6,7 +6,7 @@ services:
     name: algo-trade-dashboard
     runtime: docker
     plan: free
-    branch: test
+    branch: main
     rootDir: algo-trade
     # dockerfilePath is relative to the REPO ROOT (not rootDir), per Render spec.
     dockerfilePath: algo-trade/Dockerfile
@@ -19,3 +19,11 @@ services:
         value: "1"
       # Render injects PORT automatically; the entrypoint binds to it on 0.0.0.0.
       # For live screener data instead of mock, add FMP_API_KEY in the Render dashboard.
+      #
+      # Secrets — set these in the Render dashboard; never commit real values.
+      - key: DASHBOARD_PASSWORD   # required: login password for the dashboard
+        sync: false
+      - key: SESSION_SECRET       # required: long random string used to sign session cookies
+        sync: false
+      - key: DATABASE_URL         # Supabase direct conn: postgresql://...@db.<ref>.supabase.co:5432/postgres?sslmode=require
+        sync: false
