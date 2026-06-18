@@ -611,7 +611,7 @@ tbody tr:hover td{{background:rgba(255,255,255,.04)}}
 const $ = id => document.getElementById(id);
 function renderState(el, state, msg){{
   if(!el) return;
-  const m = {{loading:'Loading…', empty: msg||'No data yet.', error: msg||'Failed to load.'}};
+  const m = {{loading: 'Loading…', empty: msg||'No data yet.', error: msg||'Failed to load.'}};
   el.innerHTML = '<div class="state-msg state-'+state+'">'+m[state]+'</div>';
 }}
 function setText(id,v){{const el=$(id);if(el)el.textContent=v;}}

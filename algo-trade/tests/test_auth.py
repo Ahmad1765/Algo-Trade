@@ -2,7 +2,6 @@
 """Unit tests for the stdlib auth helpers in src/api_server/auth.py."""
 from __future__ import annotations
 
-import importlib
 import pytest
 
 import src.api_server.auth as auth
