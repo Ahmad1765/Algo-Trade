@@ -934,8 +934,9 @@ async function loadSettings(){{
 go();
 
 const es=new EventSource('/stream');
+['signals-body','signals-full-body','positions-body','positions-full-body'].forEach(id=>renderState($(id),'loading'));
 es.onmessage=ev=>{{try{{update(JSON.parse(ev.data))}}catch(err){{console.error(err)}}}};
-es.onerror=()=>{{$('nav-time').textContent='reconnecting...';setTimeout(()=>location.reload(),5000)}};
+es.onerror=()=>{{['signals-body','signals-full-body','positions-body','positions-full-body'].forEach(id=>renderState($(id),'error','Stream disconnected — retrying…'));$('nav-time').textContent='reconnecting...';setTimeout(()=>location.reload(),5000)}};
 </script>
 </body></html>"""
         return web.Response(text=html, content_type="text/html")
