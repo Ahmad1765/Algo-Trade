@@ -8,10 +8,16 @@
 # Stage 0: Build the Next.js static export
 FROM node:20-slim AS web-builder
 WORKDIR /web
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
 COPY frontend/ ./
-RUN npm run build
+# `npm ci` omits cross-platform optional native deps (lightningcss / @tailwindcss
+# oxide) when the lockfile was generated on a different OS (npm/cli#4828), which
+# breaks Tailwind v4 on linux with "Cannot find lightningcss.linux-x64-gnu.node".
+# Nuke any host-copied node_modules and do a fresh install so npm resolves the
+# correct linux binaries for this image; `npm install` honours package-lock for
+# versions while still installing the host-platform optional packages.
+RUN rm -rf node_modules .next out \
+    && npm install --no-audit --no-fund \
+    && npm run build
 # Output: /web/out
 
 # Stage 1: Python dependencies
