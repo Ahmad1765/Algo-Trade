@@ -183,7 +183,7 @@ class DailyLimitsConfig(BaseModel):
 class AppConfig(BaseModel):
     """Root configuration model — validates the entire config dict at startup."""
 
-    mode: Literal["paper", "live", "manual"] = "paper"
+    mode: Literal["paper", "live", "manual", "automated"] = "paper"
     screener: ScreenerConfig = Field(default_factory=ScreenerConfig)
     options_filter: OptionsFilterConfig = Field(default_factory=OptionsFilterConfig)
     indicators: IndicatorsConfig = Field(default_factory=IndicatorsConfig)

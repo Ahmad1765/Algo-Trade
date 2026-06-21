@@ -1,0 +1,50 @@
+# Keeps the free-tier Render service awake by pinging its public /health
+# endpoint on a schedule. Render's free plan spins a web service down after
+# ~15 min of no inbound traffic; an external request resets that timer.
+#
+# Notes / limitations:
+#   - GitHub's scheduled cron is best-effort and can be delayed several minutes
+#     under load, so we ping every 10 min to stay comfortably under the 15-min
+#     idle window. For stricter uptime use a dedicated pinger (UptimeRobot,
+#     cron-job.org) or upgrade the Render plan to one that never sleeps.
+#   - Scheduled workflows are paused after 60 days of no repo activity; a push
+#     or a manual run re-enables them.
+#   - /health is auth-exempt, so no secrets are needed here.
+name: keep-render-awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes (UTC)
+  workflow_dispatch: {}        # allow manual trigger from the Actions tab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-render-awake
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: |
+          URL="${KEEP_ALIVE_URL:-https://algo-trade-dashboard.onrender.com/health}"
+          echo "Pinging $URL"
+          # Retry a few times: a spun-down free instance can take 30-60s to wake.
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/body -w "%{http_code}" --max-time 90 "$URL" || echo "000")
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              cat /tmp/body
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::health check did not return 200 after retries"
+          exit 1
+    env:
+      # Override in repo Settings > Secrets and variables > Actions > Variables
+      # if your service URL differs.
+      KEEP_ALIVE_URL: ${{ vars.KEEP_ALIVE_URL }}
