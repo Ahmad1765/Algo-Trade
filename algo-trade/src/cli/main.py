@@ -57,8 +57,15 @@ def _attach_shutdown(loop: asyncio.AbstractEventLoop, tasks: list) -> None:
                 pass
 
 
-async def _run_pipeline(config: Dict[str, Any], mode: str) -> None:
-    market_adapter  = create_market_adapter(config)
+async def _run_pipeline(
+    config: Dict[str, Any],
+    mode: str,
+    *,
+    market_adapter: Any = None,
+    sim_clock: Any = None,
+) -> None:
+    if market_adapter is None:
+        market_adapter = create_market_adapter(config)
     broker_adapter  = create_broker_adapter(config)
     risk_manager    = RiskManager(config)
     position_store  = PositionStore()
@@ -151,7 +158,7 @@ async def _run_pipeline(config: Dict[str, Any], mode: str) -> None:
     api_port = int(os.environ.get("PORT") or os.environ.get("API_PORT") or api_cfg.get("port", 8181))
     from src.api_server import auth as _auth
     _auth.assert_auth_config()
-    app = create_app(risk_manager, _signal_store, position_store, market_adapter, _action_store, broker_adapter, strategy_engine=engine)
+    app = create_app(risk_manager, _signal_store, position_store, market_adapter, _action_store, broker_adapter, strategy_engine=engine, sim_clock=sim_clock)
 
     log.info("pipeline starting", mode=mode)
 
