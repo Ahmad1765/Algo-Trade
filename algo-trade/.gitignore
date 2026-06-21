@@ -38,3 +38,6 @@ frontend/out/
 .claude-flow
 CLAUDE.md
 .swarm
+
+# Replay simulation cached market data
+sim_data/
