@@ -166,7 +166,10 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, speed }),
-    }).then((r) => r.json() as Promise<SimStatus>),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`sim/control ${r.status}`);
+      return r.json() as Promise<SimStatus>;
+    }),
 };
 
 export interface MarketMover {
