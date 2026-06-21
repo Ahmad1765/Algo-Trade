@@ -83,8 +83,16 @@ def create_app(
     action_store: Optional[List[Dict]] = None,
     broker_adapter: Optional[Any] = None,
     strategy_engine: Optional[Any] = None,
+    sim_clock: Optional[Any] = None,
 ) -> web.Application:
     _action_store: List[Dict] = action_store if action_store is not None else []
+
+    def _market_open_now() -> bool:
+        return sim_clock.is_open() if sim_clock is not None else is_market_open()
+
+    def _market_time_str() -> str:
+        src_dt = sim_clock.now() if sim_clock is not None else now_et()
+        return src_dt.strftime("%Y-%m-%d %H:%M:%S ET")
 
     async def health(request: web.Request) -> web.Response:
         cfg = get_config()
@@ -92,8 +100,8 @@ def create_app(
         return web.json_response({
             "status": "ok",
             "uptime_s": round(time.time() - _START_TIME, 1),
-            "market_open": is_market_open(),
-            "market_time_et": now_et().strftime("%Y-%m-%d %H:%M:%S ET"),
+            "market_open": _market_open_now(),
+            "market_time_et": _market_time_str(),
             "mode": cfg.get("mode", "paper"),
             "broker": cfg.get("broker", {}).get("name", "mock"),
             "database_connected": db_ok,
@@ -133,7 +141,7 @@ def create_app(
             "uptime_s": round(time.time() - _START_TIME, 1),
             "signal_count": len(signal_store),
             "open_positions": open_count,
-            "market_open": is_market_open(),
+            "market_open": _market_open_now(),
         })
 
     async def get_history(request: web.Request) -> web.Response:
@@ -158,8 +166,8 @@ def create_app(
         return web.json_response({
             # system
             "uptime_s":          round(time.time() - _START_TIME, 1),
-            "market_open":       is_market_open(),
-            "market_time_et":    now_et().strftime("%Y-%m-%d %H:%M:%S ET"),
+            "market_open":       _market_open_now(),
+            "market_time_et":    _market_time_str(),
             "mode":              cfg.get("mode", "paper"),
             "broker":            cfg.get("broker", {}).get("name", "mock"),
             "database_connected": db_ok,
@@ -207,8 +215,8 @@ def create_app(
                 pending_count = strategy_engine.get_pending_count() if strategy_engine else 0
 
                 payload = _json.dumps({
-                    "market_open":    is_market_open(),
-                    "market_time":    now_et().strftime("%Y-%m-%d %H:%M:%S ET"),
+                    "market_open":    _market_open_now(),
+                    "market_time":    _market_time_str(),
                     "mode":           cfg.get("mode", "paper"),
                     "open_positions": open_count,
                     "signal_count":   len(signal_store),
@@ -888,6 +896,34 @@ def create_app(
             })
         return web.json_response({"pending": result})
 
+    # ── Sim clock endpoints ───────────────────────────────────────────────
+
+    async def sim_status(request: web.Request) -> web.Response:
+        if sim_clock is None:
+            return web.json_response({"active": False})
+        return web.json_response(sim_clock.status())
+
+    async def sim_control(request: web.Request) -> web.Response:
+        if sim_clock is None:
+            return web.json_response({"error": "sim mode not active"}, status=409)
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        action = body.get("action")
+        if action == "pause":
+            sim_clock.pause()
+        elif action == "resume":
+            sim_clock.resume()
+        elif action == "set_speed":
+            try:
+                sim_clock.set_speed(float(body.get("speed")))
+            except (TypeError, ValueError):
+                return web.json_response({"error": "speed must be a positive number"}, status=422)
+        else:
+            return web.json_response({"error": "action must be pause|resume|set_speed"}, status=422)
+        return web.json_response(sim_clock.status())
+
     # ── Middlewares ───────────────────────────────────────────────────────
     @web.middleware
     async def error_middleware(request: web.Request, handler):
@@ -1019,6 +1055,8 @@ p.err{{color:#FF5D73;font-size:13px;margin:12px 0 0}}</style></head>
         ("GET",  "/circuit-breaker",   get_circuit_breaker),
         ("GET",  "/pending-signals",   get_pending_signals),
         ("GET",  "/stream",            sse_stream),
+        ("GET",  "/sim/status",        sim_status),
+        ("POST", "/sim/control",       sim_control),
     ]
     for method, path, handler in api_routes:
         app.router.add_route(method, path, handler)
