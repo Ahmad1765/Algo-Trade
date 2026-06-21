@@ -28,6 +28,10 @@ yarn-error.log*
 frontend/.next/
 frontend/out/
 
+# Next.js static export build output
+# Exported site copied into the image at build time
+/web/
+
 
 #claude
 .claude

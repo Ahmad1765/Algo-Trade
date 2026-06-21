@@ -1,8 +1,18 @@
 # ============================================================
-# Single-stage Python build.
-# Railway exposes the Python aiohttp server directly (PORT env var).
-# Dashboard served at / — no Node.js required.
+# Multi-stage build.
+# Stage 0: Build the Next.js static export (Node, discarded after).
+# Stage 1: Build Python dependencies.
+# Stage 2: Runtime — Python server + static site at /app/web.
 # ============================================================
+
+# Stage 0: Build the Next.js static export
+FROM node:20-slim AS web-builder
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+# Output: /web/out
 
 # Stage 1: Python dependencies
 FROM python:3.11-slim AS py-builder
@@ -26,6 +36,8 @@ COPY sample_data/ ./sample_data/
 COPY scripts/ ./scripts/
 COPY config.yaml.template ./config.yaml.template
 RUN cp config.yaml.template config.yaml
+
+COPY --from=web-builder /web/out ./web
 
 RUN mkdir -p data logs && chown -R appuser:appuser /app
 
