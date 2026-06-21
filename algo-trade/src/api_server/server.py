@@ -903,7 +903,11 @@ def create_app(
 
     @web.middleware
     async def auth_middleware(request: web.Request, handler):
-        if not _auth.auth_enabled() or request.path in _auth.EXEMPT_PATHS:
+        if (
+            not _auth.auth_enabled()
+            or request.path in _auth.EXEMPT_PATHS
+            or _auth.is_public_asset(request.path)
+        ):
             return await handler(request)
         subject = _auth.verify_session(request.cookies.get(_auth.COOKIE_NAME))
         if subject is not None:

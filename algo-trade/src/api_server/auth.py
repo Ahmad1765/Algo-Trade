@@ -20,6 +20,16 @@ COOKIE_NAME = "algo_session"
 EXEMPT_PATHS = {"/health", "/login", "/logout"}
 _DEFAULT_TTL = 7 * 24 * 3600  # 7 days
 
+_PUBLIC_ASSET_PREFIXES = ("/_next/",)
+_PUBLIC_ASSET_FILES = {"/favicon.ico", "/icon.svg", "/robots.txt"}
+
+
+def is_public_asset(path: str) -> bool:
+    """Static assets that may load before/without a session."""
+    return path in _PUBLIC_ASSET_FILES or any(
+        path.startswith(p) for p in _PUBLIC_ASSET_PREFIXES
+    )
+
 
 def _truthy(val: Optional[str]) -> bool:
     return str(val or "").strip().lower() in {"1", "true", "yes", "on"}
