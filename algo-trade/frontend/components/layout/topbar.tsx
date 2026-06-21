@@ -6,6 +6,7 @@ import { Eye, EyeOff, Bell, ChevronDown, Circle, Database, X, User } from "lucid
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { api, type Signal, type StatusResponse } from "@/lib/api";
+import { SimControls } from "@/components/layout/sim-controls";
 
 const PAGE_META: Record<string, { title: string; description: string }> = {
   "/dashboard":  { title: "Dashboard",   description: "Your portfolio overview and live market data" },
@@ -152,6 +153,7 @@ export function Topbar({ masked, onToggleMask }: TopbarProps) {
 
       {/* Right: controls */}
       <div className="flex items-center gap-2 shrink-0">
+        <SimControls />
         {/* Demo mode badge */}
         {isDemo && (
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">

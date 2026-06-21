@@ -59,6 +59,17 @@ export interface Signal {
   ts: string;
 }
 
+export interface SimStatus {
+  active: boolean;
+  sim_time?: string;
+  sim_time_iso?: string;
+  speed?: number;
+  paused?: boolean;
+  sim_date?: string;
+  day_complete?: boolean;
+  market_open?: boolean;
+}
+
 export interface ConfigPayload {
   mode?: string;
   broker_name?: string;
@@ -149,6 +160,13 @@ export const api = {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   }).then((r) => r.json() as Promise<{ ok?: boolean; detail?: string; error?: string }>),
+  simStatus:    ()                        => fetchJSON<SimStatus>("/sim/status"),
+  simControl:   (action: "pause" | "resume" | "set_speed", speed?: number) =>
+    fetch(`${API_BASE}/sim/control`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, speed }),
+    }).then((r) => r.json() as Promise<SimStatus>),
 };
 
 export interface MarketMover {
