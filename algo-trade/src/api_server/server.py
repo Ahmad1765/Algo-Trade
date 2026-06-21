@@ -7,7 +7,10 @@ Endpoints:
     GET /signals    — recent signal events
     GET /positions  — live open positions from persistence store
     GET /metrics    — counts and uptime
-    GET /           — HTML dashboard
+    GET /           — redirects to /dashboard/ (Next.js static export)
+
+Every JSON endpoint is also served under an /api/* alias for the frontend
+client; static export files are served from the web dir (see _web_dir()).
 """
 
 from __future__ import annotations
