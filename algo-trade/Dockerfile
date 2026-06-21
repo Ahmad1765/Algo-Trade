@@ -9,13 +9,13 @@
 FROM node:20-slim AS web-builder
 WORKDIR /web
 COPY frontend/ ./
-# `npm ci` omits cross-platform optional native deps (lightningcss / @tailwindcss
-# oxide) when the lockfile was generated on a different OS (npm/cli#4828), which
-# breaks Tailwind v4 on linux with "Cannot find lightningcss.linux-x64-gnu.node".
-# Nuke any host-copied node_modules and do a fresh install so npm resolves the
-# correct linux binaries for this image; `npm install` honours package-lock for
-# versions while still installing the host-platform optional packages.
-RUN rm -rf node_modules .next out \
+# Tailwind v4 pulls in lightningcss / @tailwindcss-oxide, which ship per-platform
+# native .node binaries. npm has a long-standing bug (npm/cli#4828) where, as long
+# as a package-lock.json generated on another OS is present, even a fresh install
+# silently skips the host-platform optional binary — breaking the linux build with
+# "Cannot find lightningcss.linux-x64-gnu.node". Removing the lockfile forces npm
+# to re-resolve optionalDependencies against THIS platform and download the binary.
+RUN rm -rf node_modules package-lock.json .next out \
     && npm install --no-audit --no-fund \
     && npm run build
 # Output: /web/out
