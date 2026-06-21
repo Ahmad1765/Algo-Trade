@@ -1,41 +1,34 @@
 @import "tailwindcss";
 
+/*
+ * AlgoTrade design tokens.
+ * The app ships dark-only, so the dark palette is the single source of truth
+ * on :root — no light/dark duplication to drift out of sync.
+ * Surfaces stay on a single cool-zinc gray ramp; emerald is the sole accent.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 4%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --primary: 152 69% 31%;
-    --primary-foreground: 0 0% 100%;
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 96%;
-    --accent-foreground: 240 6% 10%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 152 60% 40%;
-    --radius: 0.625rem;
-  }
-
-  .dark {
-    --background: 240 10% 4%;
+    /* Surfaces (HSL channels — consumed via hsl(var(--x))) */
+    --background: 240 10% 4%;   /* page            ≈ zinc-950 */
+    --surface: 240 6% 7%;       /* cards / panels  ≈ zinc-900 */
+    --surface-raised: 240 5% 11%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
-    --border: 240 4% 14%;
-    --input: 240 4% 14%;
-    --primary: 152 60% 45%;
-    --primary-foreground: 240 10% 4%;
-    --muted: 240 4% 11%;
     --muted-foreground: 240 5% 55%;
-    --accent: 240 4% 11%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 152 60% 45%;
+    --border: 240 4% 14%;       /* hairline        ≈ zinc-800 */
+
+    /* Single accent */
+    --accent: 152 60% 45%;      /* emerald */
+    --accent-foreground: 240 10% 4%;
+
+    /* Radius scale — tighter inner, softer container */
+    --radius-sm: 0.5rem;
+    --radius: 0.625rem;
+    --radius-lg: 0.875rem;
+
+    /* Shadows tinted toward the page hue, not pure black */
+    --shadow-sm: 0 1px 2px 0 hsl(240 10% 2% / 0.4);
+    --shadow-md: 0 8px 24px -8px hsl(240 10% 2% / 0.6);
+    --shadow-lg: 0 24px 48px -16px hsl(240 10% 1% / 0.7);
   }
 }
 
@@ -45,12 +38,58 @@
     border-color: hsl(var(--border));
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Typography rhythm: tighten display headings, balance short headings,
+     keep long-form copy from leaving orphans. */
+  h1, h2, h3 {
+    text-wrap: balance;
+    letter-spacing: -0.011em;
+  }
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Numeric/code surfaces use the mono ramp with tabular figures so columns
+     of prices and P&L stay vertically aligned. */
+  code, kbd, samp, pre {
+    font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One consistent, visible focus ring for keyboard users across the app. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--accent) / 0.6);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.25);
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

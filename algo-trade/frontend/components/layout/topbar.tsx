@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
-import { Eye, EyeOff, Bell, ChevronDown, Circle, Database, X } from "lucide-react";
+import { Eye, EyeOff, Bell, ChevronDown, Circle, Database, X, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { api, type Signal, type StatusResponse } from "@/lib/api";
@@ -278,11 +278,14 @@ export function Topbar({ masked, onToggleMask }: TopbarProps) {
           )}
         </div>
 
-        {/* Account avatar */}
-        <button className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center text-xs font-semibold text-emerald-400">
-            JD
-          </div>
+        {/* Account */}
+        <button
+          className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors"
+          aria-label="Account menu"
+        >
+          <span className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-300">
+            <User className="w-3.5 h-3.5" aria-hidden />
+          </span>
           <ChevronDown className="w-3.5 h-3.5 text-zinc-500" aria-hidden />
         </button>
       </div>

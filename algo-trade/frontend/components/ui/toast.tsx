@@ -30,7 +30,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
           ? "border-emerald-500/20 bg-zinc-900"
           : "border-red-500/20 bg-zinc-900"
       )}
-      role="alert"
+      role={toast.type === "error" ? "alert" : "status"}
     >
       {toast.type === "success" ? (
         <CheckCircle className="w-4 h-4 mt-0.5 shrink-0 text-emerald-400" />

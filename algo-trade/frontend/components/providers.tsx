@@ -21,6 +21,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <MaskedContext.Provider value={{ masked, addToast }}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-emerald-500 focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-zinc-950"
+      >
+        Skip to content
+      </a>
       <div className="flex min-h-screen bg-zinc-950">
         {/* Sidebar — client-only (uses usePathname) */}
         <Sidebar />
@@ -30,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onToggleMask={() => setMasked((m) => !m)}
             title="AlgoTrade"
           />
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main id="main-content" className="flex-1 overflow-auto">{children}</main>
         </div>
       </div>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

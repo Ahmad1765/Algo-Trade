@@ -14,18 +14,22 @@ export default function GlobalError({
       <body
         style={{
           display: "flex",
-          minHeight: "100vh",
+          minHeight: "100dvh",
           alignItems: "center",
           justifyContent: "center",
           background: "#09090b",
           color: "#f4f4f5",
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          fontFamily: "var(--font-sans), ui-sans-serif, system-ui, sans-serif",
           margin: 0,
+          padding: "24px",
         }}
       >
-        <div style={{ textAlign: "center" }}>
-          <p style={{ marginBottom: "12px", fontSize: "14px", color: "#a1a1aa" }}>
-            Something went wrong
+        <div style={{ textAlign: "center", maxWidth: "20rem" }}>
+          <p style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 600, color: "#f4f4f5" }}>
+            The dashboard hit an error
+          </p>
+          <p style={{ margin: "0 0 16px", fontSize: "13px", lineHeight: 1.5, color: "#a1a1aa" }}>
+            This is on our side, not your data. Reloading usually clears it.
           </p>
           <button
             onClick={reset}
