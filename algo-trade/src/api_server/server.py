@@ -17,6 +17,7 @@ import hmac
 import html as _html
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -26,6 +27,11 @@ from src.config import get_config, update_config, deep_merge
 from src.logger import get_logger
 from src.market_hours import is_market_open, now_et
 from src.api_server import auth as _auth
+
+
+def _web_dir() -> Path:
+    """Directory holding the exported Next.js site (read fresh for tests)."""
+    return Path(os.getenv("WEB_DIR") or (Path(__file__).resolve().parents[2] / "web"))
 
 log = get_logger(__name__)
 
@@ -228,718 +234,6 @@ def create_app(
             pass
         return resp
 
-    async def dashboard(request: web.Request) -> web.Response:
-        cfg = get_config()
-        mode = cfg.get("mode", "paper")
-        paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 25000.0))
-
-        html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AlgoTrade Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-:root{{
-  --bg:#06070A;--surface:rgba(255,255,255,.025);--surface2:rgba(255,255,255,.05);
-  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.14);
-  --text:#E7EAF3;--muted:#8A90A6;--dim:#565C72;
-  --green:#2FE6A6;--red:#FF5D73;--blue:#5BA8FF;--yellow:#FFC857;--teal:#34E6A8;--violet:#A78BFA;
-  --green-dim:rgba(47,230,166,.12);--red-dim:rgba(255,93,115,.12);--blue-dim:rgba(91,168,255,.13);
-  --f-display:'Bricolage Grotesque',sans-serif;--f-ui:'Manrope',sans-serif;
-  --f-mono:'JetBrains Mono',ui-monospace,monospace;--r:16px;
-}}
-*{{box-sizing:border-box;margin:0;padding:0}}
-html{{scroll-behavior:smooth}}
-body{{font-family:var(--f-ui);background:var(--bg);color:var(--text);min-height:100vh;
-  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;letter-spacing:.1px;position:relative;
-  background-image:
-    radial-gradient(1000px 680px at 8% -10%,rgba(91,168,255,.12),transparent 60%),
-    radial-gradient(900px 640px at 102% -4%,rgba(47,230,166,.09),transparent 56%),
-    radial-gradient(760px 760px at 88% 112%,rgba(167,139,250,.09),transparent 60%);
-  background-attachment:fixed;}}
-body::before{{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);
-  background-size:46px 46px;
-  -webkit-mask-image:radial-gradient(circle at 50% 20%,#000 35%,transparent 86%);
-  mask-image:radial-gradient(circle at 50% 20%,#000 35%,transparent 86%);}}
-body::after{{content:'';position:fixed;inset:-40%;z-index:0;pointer-events:none;opacity:.6;
-  background:radial-gradient(circle at 30% 38%,rgba(91,168,255,.05),transparent 42%),
-            radial-gradient(circle at 72% 64%,rgba(47,230,166,.045),transparent 42%);
-  animation:drift 28s ease-in-out infinite alternate;}}
-@keyframes drift{{from{{transform:translate(0,0) rotate(0)}}to{{transform:translate(3%,2%) rotate(7deg)}}}}
-
-.topnav{{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
-  padding:0 26px;height:64px;background:rgba(10,12,18,.72);
-  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
-  border-bottom:1px solid var(--border);}}
-.topnav::after{{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(91,168,255,.6),rgba(47,230,166,.6),transparent);
-  background-size:200% 100%;animation:sweep 6s linear infinite;}}
-@keyframes sweep{{from{{background-position:0 0}}to{{background-position:200% 0}}}}
-.brand{{display:flex;align-items:center;gap:12px;margin-right:auto}}
-.logo{{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
-  background:linear-gradient(145deg,rgba(91,168,255,.95),rgba(47,230,166,.9));
-  color:#06070A;font-weight:800;font-size:17px;box-shadow:0 6px 20px -6px rgba(91,168,255,.75);}}
-.brand-txt{{display:flex;flex-direction:column;line-height:1.05}}
-.brand-name{{font-family:var(--f-display);font-weight:800;font-size:19px;letter-spacing:-.3px;
-  background:linear-gradient(90deg,#EAF1FF,#9FE9D2);-webkit-background-clip:text;background-clip:text;color:transparent;}}
-.brand-sub{{font-size:10px;color:var(--dim);font-weight:700;letter-spacing:1.8px;text-transform:uppercase}}
-.pill{{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;
-  font-size:11px;font-weight:700;letter-spacing:.4px;font-family:var(--f-mono);
-  border:1px solid var(--border2);background:var(--surface);}}
-.pill-green{{background:var(--green-dim);color:var(--green);border-color:rgba(47,230,166,.45)}}
-.pill-red{{background:var(--red-dim);color:var(--red);border-color:rgba(255,93,115,.45)}}
-.pill-yellow{{background:rgba(255,200,87,.12);color:var(--yellow);border-color:rgba(255,200,87,.45)}}
-.pill-blue{{background:var(--blue-dim);color:var(--blue);border-color:rgba(91,168,255,.45)}}
-.clock{{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:12px;color:var(--muted)}}
-.live-dot{{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;
-  box-shadow:0 0 0 0 rgba(47,230,166,.5);animation:pulse 2s infinite}}
-@keyframes pulse{{0%,100%{{box-shadow:0 0 0 0 rgba(47,230,166,.5)}}50%{{box-shadow:0 0 0 6px rgba(47,230,166,0)}}}}
-
-.main{{position:relative;z-index:1;padding:26px 26px 40px;max-width:1480px;margin:0 auto}}
-.warn-bar{{display:flex;align-items:center;justify-content:center;gap:8px;
-  background:linear-gradient(90deg,rgba(255,200,87,.10),rgba(255,200,87,.04));
-  border:1px solid rgba(255,200,87,.3);color:var(--yellow);
-  padding:11px 16px;font-size:12.5px;font-weight:600;text-align:center;border-radius:12px;
-  margin-bottom:20px;letter-spacing:.3px;}}
-.kpi-row{{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px}}
-.kpi{{position:relative;overflow:hidden;padding:18px 18px 16px;border-radius:var(--r);
-  background:var(--surface);border:1px solid var(--border);
-  box-shadow:0 20px 40px -28px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.04);
-  opacity:0;transform:translateY(12px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards;
-  transition:transform .25s,border-color .25s;}}
-.kpi:hover{{transform:translateY(-3px);border-color:var(--border2)}}
-.kpi::before{{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:.95}}
-.kpi::after{{content:'';position:absolute;width:130px;height:130px;right:-44px;top:-54px;border-radius:50%;
-  filter:blur(38px);opacity:.16;background:var(--blue)}}
-.kpi-blue::before{{background:var(--blue)}} .kpi-blue::after{{background:var(--blue)}}
-.kpi-green::before{{background:var(--green)}} .kpi-green::after{{background:var(--green)}}
-.kpi-red::before{{background:var(--red)}} .kpi-red::after{{background:var(--red)}}
-.kpi-yellow::before{{background:var(--yellow)}} .kpi-yellow::after{{background:var(--yellow)}}
-.kpi-teal::before{{background:var(--teal)}} .kpi-teal::after{{background:var(--teal)}}
-.kpi-label{{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);
-  text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px}}
-.kpi-label::before{{content:'';width:6px;height:6px;border-radius:2px;background:currentColor;opacity:.85}}
-.kpi-value{{font-family:var(--f-mono);font-size:26px;font-weight:700;line-height:1;letter-spacing:-.5px;
-  font-variant-numeric:tabular-nums}}
-.kpi-sub{{font-size:11.5px;color:var(--dim);margin-top:8px;font-weight:500}}
-.pos-green{{color:var(--green)}} .pos-red{{color:var(--red)}}
-@keyframes rise{{to{{opacity:1;transform:translateY(0)}}}}
-.kpi:nth-child(1){{animation-delay:.04s}}.kpi:nth-child(2){{animation-delay:.10s}}
-.kpi:nth-child(3){{animation-delay:.16s}}.kpi:nth-child(4){{animation-delay:.22s}}
-.kpi:nth-child(5){{animation-delay:.28s}}.kpi:nth-child(6){{animation-delay:.34s}}
-.grid2{{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}}
-.grid3{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}}
-@media(max-width:920px){{.grid2,.grid3{{grid-template-columns:1fr}}}}
-.card{{position:relative;border-radius:var(--r);padding:20px;background:var(--surface);
-  border:1px solid var(--border);box-shadow:0 24px 50px -32px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.04);
-  opacity:0;transform:translateY(12px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:.3s}}
-.card-hdr{{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}}
-.card-title{{font-family:var(--f-display);font-size:13.5px;font-weight:700;letter-spacing:.2px;color:var(--text)}}
-.badge{{font-family:var(--f-mono);background:var(--surface2);color:var(--muted);font-size:11px;
-  padding:4px 10px;border-radius:999px;font-weight:600;border:1px solid var(--border)}}
-table{{width:100%;border-collapse:collapse}}
-thead th{{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
-  padding:8px 12px;border-bottom:1px solid var(--border);text-align:left}}
-tbody td{{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text);
-  font-variant-numeric:tabular-nums}}
-tbody tr:last-child td{{border-bottom:none}}
-tbody tr{{transition:background .15s}}
-tbody tr:hover td{{background:rgba(255,255,255,.04)}}
-.empty{{color:var(--dim);font-style:italic;text-align:center;padding:28px 20px;font-size:13px}}
-.call{{color:var(--green);font-weight:700;font-family:var(--f-mono)}}
-.put{{color:var(--red);font-weight:700;font-family:var(--f-mono)}}
-.ev-fill{{color:var(--green)}} .ev-reject{{color:var(--red)}} .ev-start{{color:var(--blue)}} .ev-other{{color:var(--muted)}}
-.cb-ok{{color:var(--green)}} .cb-halt{{color:var(--red)}}
-.chart-wrap{{position:relative;height:200px}}
-.footer{{position:relative;z-index:1;color:var(--dim);font-size:11px;padding:18px 26px 32px;margin-top:8px;
-  border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px;align-items:center}}
-.footer .sp{{margin-right:auto}}
-.footer b{{color:var(--muted);font-family:var(--f-mono)}}
-.footer a{{color:var(--muted);text-decoration:none;font-family:var(--f-mono);font-size:11px;
-  padding:5px 11px;border:1px solid var(--border);border-radius:999px;background:var(--surface);transition:all .2s}}
-.footer a:hover{{color:var(--blue);border-color:rgba(91,168,255,.5);background:var(--blue-dim)}}
-
-/* ── multi-page shell ── */
-.menu-btn{{display:none;background:var(--surface);border:1px solid var(--border);color:var(--text);
-  width:38px;height:38px;border-radius:10px;font-size:16px;cursor:pointer;margin-right:4px}}
-.shell{{position:relative;z-index:1;display:flex;align-items:flex-start;max-width:1560px;margin:0 auto}}
-.sidebar{{position:sticky;top:64px;height:calc(100vh - 64px);width:230px;flex:0 0 230px;
-  padding:18px 14px;display:flex;flex-direction:column;gap:4px;
-  border-right:1px solid var(--border);background:rgba(10,12,18,.4);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}}
-.nav-item{{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;
-  color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:600;letter-spacing:.2px;
-  border:1px solid transparent;transition:all .18s}}
-.nav-item .ni-ic{{font-size:14px;width:18px;text-align:center;opacity:.85}}
-.nav-item:hover{{color:var(--text);background:var(--surface);border-color:var(--border)}}
-.nav-item.active{{color:#06070A;background:linear-gradient(135deg,var(--blue),var(--teal));
-  border-color:transparent;box-shadow:0 8px 20px -10px rgba(91,168,255,.8);font-weight:700}}
-.nav-item.active .ni-ic{{opacity:1}}
-.side-foot{{margin-top:auto;font-size:11px;color:var(--dim);padding:12px 14px;font-family:var(--f-mono)}}
-.side-foot b{{color:var(--muted)}}
-.dot-live{{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);
-  margin-right:5px;animation:pulse 2s infinite}}
-.content{{flex:1;min-width:0;padding:26px 30px 40px;max-width:1330px}}
-.page{{display:none}}
-.page.active{{display:block;animation:fade .35s ease}}
-@keyframes fade{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:translateY(0)}}}}
-.page-head{{margin-bottom:20px}}
-.page-head h1{{font-family:var(--f-display);font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}}
-.page-head p{{color:var(--muted);font-size:13px}}
-.btn{{font-family:var(--f-ui);font-weight:700;font-size:13px;color:#06070A;cursor:pointer;
-  padding:11px 22px;border:none;border-radius:11px;letter-spacing:.2px;
-  background:linear-gradient(135deg,var(--blue),var(--teal));
-  box-shadow:0 10px 24px -12px rgba(91,168,255,.9);transition:transform .15s,opacity .15s}}
-.btn:hover{{transform:translateY(-1px)}}
-.btn:disabled{{opacity:.5;cursor:not-allowed;transform:none}}
-.bt-controls{{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}}
-.bt-controls label{{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}}
-.bt-controls input,.bt-controls select{{font-family:var(--f-mono);font-size:13px;color:var(--text);
-  background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;min-width:160px;outline:none}}
-.bt-controls input:focus,.bt-controls select:focus{{border-color:rgba(91,168,255,.6)}}
-.bt-status{{margin-top:14px;font-size:12.5px;font-family:var(--f-mono);color:var(--muted);min-height:18px}}
-.bt-status.running{{color:var(--blue)}} .bt-status.ok{{color:var(--green)}} .bt-status.err{{color:var(--red)}}
-#bt-results{{margin-top:16px;display:flex;flex-direction:column;gap:16px}}
-.cb-pill{{display:inline-flex;align-items:center;font-family:var(--f-mono);font-size:13px;font-weight:700;
-  padding:9px 15px;border-radius:999px;border:1px solid var(--border2)}}
-.raw{{font-family:var(--f-mono);font-size:12px;line-height:1.6;color:var(--muted);white-space:pre-wrap;
-  word-break:break-word;max-height:440px;overflow:auto;margin:0}}
-@media(max-width:880px){{
-  .sidebar{{position:fixed;left:0;top:64px;z-index:30;transform:translateX(-110%);
-    transition:transform .25s;box-shadow:0 20px 60px rgba(0,0,0,.6)}}
-  .sidebar.open{{transform:translateX(0)}}
-  .menu-btn{{display:block}}
-  .content{{padding:20px 16px 40px;max-width:none}}
-}}
-.paper-banner{{position:sticky;top:0;z-index:50;text-align:center;padding:7px 12px;
-  font-family:var(--f-ui);font-size:12.5px;font-weight:700;letter-spacing:.3px;
-  color:#06070A;background:linear-gradient(90deg,var(--yellow),var(--teal));}}
-#about-panel{{max-width:1100px;margin:14px auto 0;padding:12px 16px;font-size:13px;
-  color:var(--muted);background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r);line-height:1.55;}}
-#about-panel strong{{color:var(--text);}}
-.state-msg{{padding:18px;text-align:center;color:var(--dim);font-size:13px;}}
-.state-msg.state-error{{color:var(--red);}}
-@media (max-width:760px){{
-  body{{font-size:13px;}}
-  #about-panel{{margin:12px;}}
-  .paper-banner{{font-size:11px;}}
-  table{{display:block;overflow-x:auto;white-space:nowrap;}}
-  .sidebar{{display:none;}}
-}}
-</style>
-</head>
-<body>
-<div class="paper-banner">📄 PAPER TRADING — simulated orders, not financial advice</div>
-<section id="about-panel">
-  <strong>AlgoTrade</strong> — an educational, event-driven options paper-trading demo.
-  It scans the market, generates RSI/MACD momentum signals, and simulates trades with
-  ATR-based risk. No real orders are placed. Not financial advice.
-</section>
-
-<nav class="topnav">
-  <button class="menu-btn" id="menu-btn" aria-label="menu">&#9776;</button>
-  <div class="brand">
-    <div class="logo">&#9651;</div>
-    <div class="brand-txt">
-      <span class="brand-name">AlgoTrade</span>
-      <span class="brand-sub">Options Automation</span>
-    </div>
-  </div>
-  <span id="nav-mkt" class="pill pill-blue">—</span>
-  <span id="nav-mode" class="pill pill-yellow">{mode.upper()}</span>
-  <span class="clock"><span class="live-dot"></span><span id="nav-time">connecting...</span></span>
-</nav>
-
-<div class="shell">
-  <aside class="sidebar" id="sidebar">
-    <a class="nav-item" href="#/overview"    data-route="overview"><span class="ni-ic">&#9783;</span>Overview</a>
-    <a class="nav-item" href="#/positions"   data-route="positions"><span class="ni-ic">&#9638;</span>Positions</a>
-    <a class="nav-item" href="#/signals"     data-route="signals"><span class="ni-ic">&#9889;</span>Signals</a>
-    <a class="nav-item" href="#/activity"    data-route="activity"><span class="ni-ic">&#8801;</span>Activity</a>
-    <a class="nav-item" href="#/performance" data-route="performance"><span class="ni-ic">&#9650;</span>Performance</a>
-    <a class="nav-item" href="#/backtest"    data-route="backtest"><span class="ni-ic">&#8635;</span>Backtest</a>
-    <a class="nav-item" href="#/strategies"  data-route="strategies"><span class="ni-ic">&#9670;</span>Strategies</a>
-    <a class="nav-item" href="#/settings"    data-route="settings"><span class="ni-ic">&#9881;</span>Settings</a>
-    <div class="side-foot"><span class="dot-live"></span>live &middot; uptime <b id="uptime">—</b></div>
-  </aside>
-
-  <main class="content">
-{"" if mode=="automated" else f'<div class="warn-bar">&#9888; {mode.upper()} MODE — {"No real orders are placed" if mode=="paper" else "Manual approval required"}</div>'}
-
-  <!-- ===================== OVERVIEW ===================== -->
-  <section id="page-overview" class="page active">
-    <div class="page-head"><h1>Overview</h1><p>Live paper-trading simulation — refreshes every 5 seconds</p></div>
-    <div class="kpi-row">
-      <div class="kpi kpi-blue"><div class="kpi-label">Account Value</div><div class="kpi-value" id="k-capital">—</div><div class="kpi-sub">Starting: ${paper_capital:,.0f}</div></div>
-      <div class="kpi kpi-green"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="k-total-pnl">—</div><div class="kpi-sub" id="k-total-pnl-sub">all time</div></div>
-      <div class="kpi kpi-teal"><div class="kpi-label">Today&apos;s P&amp;L</div><div class="kpi-value" id="k-daily-pnl">—</div><div class="kpi-sub" id="k-daily-pnl-sub">today</div></div>
-      <div class="kpi kpi-yellow"><div class="kpi-label">Win Rate</div><div class="kpi-value" id="k-winrate">—</div><div class="kpi-sub" id="k-trades">0 trades</div></div>
-      <div class="kpi kpi-blue"><div class="kpi-label">Open Positions</div><div class="kpi-value" id="k-positions">—</div><div class="kpi-sub" id="k-pending">0 pending signals</div></div>
-      <div class="kpi kpi-green"><div class="kpi-label">Best Trade</div><div class="kpi-value" id="k-best">—</div><div class="kpi-sub" id="k-worst">worst: —</div></div>
-    </div>
-    <div class="grid2">
-      <div class="card">
-        <div class="card-hdr"><span class="card-title">P&amp;L History</span><span class="badge" id="cb-status">Circuit Breaker: —</span></div>
-        <div class="chart-wrap"><canvas id="pnl-chart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-hdr"><span class="card-title">Win / Loss</span><span class="badge" id="db-badge">DB: —</span></div>
-        <div class="chart-wrap"><canvas id="win-chart"></canvas></div>
-      </div>
-    </div>
-    <div class="grid2">
-      <div class="card">
-        <div class="card-hdr"><span class="card-title">Open Positions</span><span class="badge" id="pos-badge">0</span></div>
-        <div id="positions-body"><p class="empty">No open positions.</p></div>
-      </div>
-      <div class="card">
-        <div class="card-hdr"><span class="card-title">Recent Signals</span><span class="badge" id="sig-badge">0</span></div>
-        <div id="signals-body"><p class="empty">No signals yet.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===================== POSITIONS ===================== -->
-  <section id="page-positions" class="page">
-    <div class="page-head"><h1>Positions</h1><p>Every currently open simulated position with its trade plan</p></div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Open Positions</span><span class="badge" id="pos-full-badge">0</span></div>
-      <div id="positions-full-body"><p class="empty">No open positions.</p></div>
-    </div>
-  </section>
-
-  <!-- ===================== SIGNALS ===================== -->
-  <section id="page-signals" class="page">
-    <div class="page-head"><h1>Signals</h1><p>Momentum signals produced by the strategy engine (RSI + MACD &amp; more)</p></div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Signal Feed</span><span class="badge" id="sig-full-badge">0</span></div>
-      <div id="signals-full-body"><p class="empty">No signals yet.</p></div>
-    </div>
-  </section>
-
-  <!-- ===================== ACTIVITY ===================== -->
-  <section id="page-activity" class="page">
-    <div class="page-head"><h1>Activity</h1><p>System event log — starts, fills, rejects and resets</p></div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Activity Log</span><span class="badge" id="act-full-badge">0</span></div>
-      <div id="activity-full-body"><p class="empty">No activity yet.</p></div>
-    </div>
-  </section>
-
-  <!-- ===================== PERFORMANCE ===================== -->
-  <section id="page-performance" class="page">
-    <div class="page-head"><h1>Performance</h1><p>Aggregate results of the running simulation</p></div>
-    <div class="kpi-row">
-      <div class="kpi kpi-blue"><div class="kpi-label">Account Value</div><div class="kpi-value" id="p-acct">—</div></div>
-      <div class="kpi kpi-green"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="p-total">—</div></div>
-      <div class="kpi kpi-teal"><div class="kpi-label">Today&apos;s P&amp;L</div><div class="kpi-value" id="p-daily">—</div></div>
-      <div class="kpi kpi-yellow"><div class="kpi-label">Win Rate</div><div class="kpi-value" id="p-wr">—</div></div>
-      <div class="kpi kpi-blue"><div class="kpi-label">Total Trades</div><div class="kpi-value" id="p-trades">—</div></div>
-      <div class="kpi kpi-green"><div class="kpi-label">Wins</div><div class="kpi-value pos-green" id="p-wins">—</div></div>
-      <div class="kpi kpi-red"><div class="kpi-label">Losses</div><div class="kpi-value pos-red" id="p-losses">—</div></div>
-      <div class="kpi kpi-green"><div class="kpi-label">Best Trade</div><div class="kpi-value" id="p-best">—</div></div>
-      <div class="kpi kpi-red"><div class="kpi-label">Worst Trade</div><div class="kpi-value" id="p-worst">—</div></div>
-      <div class="kpi kpi-teal"><div class="kpi-label">Avg P&amp;L / Trade</div><div class="kpi-value" id="p-avg">—</div></div>
-    </div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Circuit Breaker</span></div>
-      <span class="cb-pill cb-ok" id="p-cb">—</span>
-    </div>
-  </section>
-
-  <!-- ===================== BACKTEST ===================== -->
-  <section id="page-backtest" class="page">
-    <div class="page-head"><h1>Backtest</h1><p>Run a historical simulation of the strategy on real price history</p></div>
-    <div class="card">
-      <div class="bt-controls">
-        <label>Symbol<input id="bt-symbol" value="SPY" maxlength="6" autocomplete="off"></label>
-        <label>Period<select id="bt-period">
-          <option>3 Months</option><option>6 Months</option>
-          <option selected>1 Year</option><option>2 Years</option><option>5 Years</option>
-        </select></label>
-        <button id="bt-run" class="btn">&#8635; Run Simulation</button>
-      </div>
-      <div id="bt-status" class="bt-status"></div>
-    </div>
-    <div id="bt-results" style="display:none">
-      <div class="kpi-row" id="bt-summary"></div>
-      <div class="card">
-        <div class="card-hdr"><span class="card-title">Equity Curve</span><span class="badge" id="bt-meta">—</span></div>
-        <div class="chart-wrap" style="height:260px"><canvas id="bt-chart"></canvas></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===================== STRATEGIES ===================== -->
-  <section id="page-strategies" class="page">
-    <div class="page-head"><h1>Strategies</h1><p>The momentum &amp; mean-reversion models wired into the engine</p></div>
-    <div id="strategies-body"><p class="empty">Loading strategies&hellip;</p></div>
-  </section>
-
-  <!-- ===================== SETTINGS ===================== -->
-  <section id="page-settings" class="page">
-    <div class="page-head"><h1>Settings</h1><p>System configuration (read-only)</p></div>
-    <div class="kpi-row" id="settings-tiles"></div>
-    <div class="card">
-      <div class="card-hdr"><span class="card-title">Raw configuration</span></div>
-      <pre id="settings-raw" class="raw">Loading&hellip;</pre>
-    </div>
-  </section>
-
-  <div class="footer">
-    <span class="sp">&#9651; <b>AlgoTrade</b> &middot; paper-trading demo</span>
-    <a href="/health">/health</a>
-    <a href="/signals">/signals</a>
-    <a href="/positions">/positions</a>
-    <a href="/metrics">/metrics</a>
-    <a href="/status">/status</a>
-  </div>
-  </main>
-</div>
-
-<script>
-/* ── helpers ── */
-const $ = id => document.getElementById(id);
-function renderState(el, state, msg){{
-  if(!el) return;
-  const m = {{loading: 'Loading…', empty: msg||'No data yet.', error: msg||'Failed to load.'}};
-  el.innerHTML = '<div class="state-msg state-'+state+'">'+m[state]+'</div>';
-}}
-function setText(id,v){{const el=$(id);if(el)el.textContent=v;}}
-function setHtml(id,v){{const el=$(id);if(el)el.innerHTML=v;}}
-function setMoney(id,v){{const el=$(id);if(!el)return;el.textContent=money(v);el.classList.remove('pos-green','pos-red');el.classList.add(Number(v)>=0?'pos-green':'pos-red');}}
-function esc(v){{const d=document.createElement('div');d.textContent=String(v??'—');return d.textContent}}
-function fmt(ts){{return ts?String(ts).slice(0,19).replace('T',' '):'—'}}
-function money(v){{
-  const n=Number(v)||0;
-  const sign=n>=0?'+':'-';
-  return (n>=0?'':'-')+'$'+Math.abs(n).toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-}}
-function pct(v){{return((Number(v)||0)*100).toFixed(1)+'%'}}
-function setColor(el,v){{el.className=el.className.replace(/pos-(green|red)/g,'');el.classList.add(Number(v)>=0?'pos-green':'pos-red')}}
-
-/* ── P&L chart ── */
-const pnlCtx=$('pnl-chart').getContext('2d');
-const pnlChart=new Chart(pnlCtx,{{
-  type:'line',
-  data:{{labels:[],datasets:[{{label:'Cumulative P&L',data:[],borderColor:'#5BA8FF',
-    backgroundColor:'rgba(91,168,255,.13)',fill:true,tension:.35,borderWidth:2,pointRadius:2,
-    pointHoverRadius:5,
-    pointBackgroundColor:ctx=>{{
-      const v=ctx.dataset.data[ctx.dataIndex]||0;
-      return v>=0?'#2FE6A6':'#FF5D73';
-    }}
-  }}]}},
-  options:{{responsive:true,maintainAspectRatio:false,animation:{{duration:300}},
-    plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>money(c.parsed.y)}}}}}},
-    scales:{{
-      x:{{ticks:{{color:'#8A90A6',font:{{family:"'JetBrains Mono',monospace",size:10}},maxRotation:0,maxTicksLimit:6}},grid:{{color:'rgba(255,255,255,.05)'}}}},
-      y:{{ticks:{{color:'#8A90A6',font:{{family:"'JetBrains Mono',monospace",size:10}},callback:v=>money(v)}},grid:{{color:'rgba(255,255,255,.05)'}}}}
-    }}
-  }}
-}});
-let pnlHistory=[{{label:'Start',value:0}}];
-
-/* ── Win/Loss donut ── */
-const winCtx=$('win-chart').getContext('2d');
-const winChart=new Chart(winCtx,{{
-  type:'doughnut',
-  data:{{labels:['Wins','Losses','No trades'],datasets:[{{
-    data:[0,0,1],
-    backgroundColor:['#2FE6A6','#FF5D73','rgba(255,255,255,.06)'],
-    borderColor:'rgba(6,7,10,.6)',
-    borderWidth:2,hoverOffset:7
-  }}]}},
-  options:{{responsive:true,maintainAspectRatio:false,animation:{{duration:300}},
-    cutout:'68%',
-    plugins:{{legend:{{position:'right',labels:{{color:'#8A90A6',font:{{family:"'Manrope',sans-serif",size:11}},boxWidth:12,usePointStyle:true,pointStyle:'circle'}}}},
-      tooltip:{{callbacks:{{label:c=>c.label+': '+c.parsed}}}}}}
-  }}
-}});
-
-/* ── render tables ── */
-function renderPositions(pos){{
-  const keys=Object.keys(pos||{{}});
-  if(!keys.length)return'<p class="empty">No open positions.</p>';
-  let h='<table><thead><tr><th>Contract</th><th>Symbol</th><th>Dir</th><th>Qty</th><th>Entry</th><th>Stop</th><th>Target</th></tr></thead><tbody>';
-  for(const k of keys){{
-    const p=pos[k];
-    const dir=(p.direction||'').toUpperCase();
-    h+=`<tr>
-      <td style="font-family:monospace;font-size:12px;color:var(--muted)">${{esc(k)}}</td>
-      <td><b>${{esc(p.symbol||k.split('_')[0])}}</b></td>
-      <td class="${{dir==='CALL'?'call':'put'}}">${{esc(dir)}}</td>
-      <td>${{esc(p.quantity)}}</td>
-      <td>$${{esc(p.entry_price)}}</td>
-      <td style="color:var(--red)">$${{esc(p.stop_loss)}}</td>
-      <td style="color:var(--green)">$${{esc(p.take_profit)}}</td>
-    </tr>`;
-  }}
-  return h+'</tbody></table>';
-}}
-
-function renderSignals(sigs){{
-  if(!sigs||!sigs.length)return'<p class="empty">No signals yet.</p>';
-  let h='<table><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Stop</th><th>Target</th><th>Strategy</th></tr></thead><tbody>';
-  for(const s of [...sigs].reverse()){{
-    const dir=(s.direction||'').toUpperCase();
-    h+=`<tr>
-      <td style="color:var(--muted);font-size:12px">${{fmt(s.ts)}}</td>
-      <td><b>${{esc(s.symbol)}}</b></td>
-      <td class="${{dir==='CALL'?'call':'put'}}">${{esc(dir)}}</td>
-      <td>$${{esc(s.entry)}}</td>
-      <td style="color:var(--red)">$${{esc(s.stop)}}</td>
-      <td style="color:var(--green)">$${{esc(s.target)}}</td>
-      <td style="color:var(--muted);font-size:12px">${{esc(s.strategy)}}</td>
-    </tr>`;
-  }}
-  return h+'</tbody></table>';
-}}
-
-function evCls(ev){{
-  if(!ev)return'ev-other';
-  if(ev.includes('FILL')||ev.includes('CLOSED'))return'ev-fill';
-  if(ev.includes('REJECT'))return'ev-reject';
-  if(ev.includes('START'))return'ev-start';
-  return'ev-other';
-}}
-
-function renderActivity(acts){{
-  if(!acts||!acts.length)return'<p class="empty">No activity yet.</p>';
-  let h='<table><thead><tr><th>Time</th><th>Event</th><th>Symbol</th><th>Detail</th></tr></thead><tbody>';
-  for(const a of acts){{
-    h+=`<tr>
-      <td style="color:var(--muted);font-size:12px">${{fmt(a.ts)}}</td>
-      <td class="${{evCls(a.event||'')}}" style="font-weight:600">${{esc(a.event)}}</td>
-      <td><b>${{esc(a.symbol)}}</b></td>
-      <td style="color:var(--muted);font-size:12px">${{esc(a.detail)}}</td>
-    </tr>`;
-  }}
-  return h+'</tbody></table>';
-}}
-
-/* ── main update ── */
-function update(d){{
-  /* nav bar */
-  const open=d.market_open;
-  $('nav-mkt').textContent=open?'MARKET OPEN':'MARKET CLOSED';
-  $('nav-mkt').className='pill '+(open?'pill-green':'pill-red');
-  $('nav-time').textContent=d.market_time||'—';
-  $('uptime').textContent=d.uptime_s!=null?d.uptime_s+'s':'—';
-
-  /* KPI cards */
-  const cap=d.paper_capital||25000;
-  const totalPnl=d.total_pnl||0;
-  const accountVal=cap+totalPnl;
-  $('k-capital').textContent='$'+accountVal.toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-
-  $('k-total-pnl').textContent=money(totalPnl);
-  setColor($('k-total-pnl'),totalPnl);
-  $('k-total-pnl-sub').textContent=(d.trade_count||0)+' closed trades';
-
-  const dpnl=d.daily_pnl||0;
-  $('k-daily-pnl').textContent=money(dpnl);
-  setColor($('k-daily-pnl'),dpnl);
-  const dpct=cap?((dpnl/cap)*100).toFixed(2):0;
-  $('k-daily-pnl-sub').textContent=(dpnl>=0?'+':'')+dpct+'% today';
-
-  const wr=d.win_rate||0;
-  $('k-winrate').textContent=pct(wr);
-  $('k-trades').textContent=(d.win_count||0)+'W / '+(d.loss_count||0)+'L';
-
-  $('k-positions').textContent=d.open_positions??'—';
-  $('k-pending').textContent=(d.pending_signals||0)+' pending signals';
-
-  $('k-best').textContent=money(d.best_trade||0);
-  $('k-best').className='kpi-value '+(( d.best_trade||0)>=0?'pos-green':'pos-red');
-  $('k-worst').textContent='worst: '+money(d.worst_trade||0);
-
-  /* circuit breaker */
-  const cb=d.circuit_breaker||{{}};
-  const cbHalt=cb.halted||false;
-  $('cb-status').textContent='Circuit Breaker: '+(cbHalt?'HALTED ⚠':'OK');
-  $('cb-status').style.color=cbHalt?'var(--red)':'var(--green)';
-
-  /* DB badge */
-  $('db-badge').textContent='DB: '+(d.db_ok?'Connected':'Error');
-  $('db-badge').style.color=d.db_ok?'var(--green)':'var(--red)';
-
-  /* P&L chart — append new point if value changed */
-  const lastVal=pnlHistory[pnlHistory.length-1].value;
-  if(totalPnl!==lastVal){{
-    const lbl=d.market_time?d.market_time.slice(11,16):'now';
-    pnlHistory.push({{label:lbl,value:totalPnl}});
-    if(pnlHistory.length>100)pnlHistory.shift();
-    pnlChart.data.labels=pnlHistory.map(p=>p.label);
-    pnlChart.data.datasets[0].data=pnlHistory.map(p=>p.value);
-    pnlChart.update('none');
-  }}
-
-  /* Win/Loss donut */
-  const wins=d.win_count||0,losses=d.loss_count||0;
-  if(wins+losses>0){{
-    winChart.data.labels=['Wins','Losses'];
-    winChart.data.datasets[0].data=[wins,losses];
-    winChart.data.datasets[0].backgroundColor=['#2FE6A6','#FF5D73'];
-    winChart.data.datasets[0].borderColor='rgba(6,7,10,.6)';
-  }}else{{
-    winChart.data.labels=['No trades'];
-    winChart.data.datasets[0].data=[1];
-    winChart.data.datasets[0].backgroundColor=['rgba(255,255,255,.06)'];
-    winChart.data.datasets[0].borderColor='rgba(6,7,10,.6)';
-  }}
-  winChart.update('none');
-
-  /* tables — overview mini + dedicated pages */
-  const posKeys=Object.keys(d.positions||{{}});
-  const posHtml=renderPositions(d.positions);
-  setText('pos-badge',posKeys.length); setHtml('positions-body',posHtml);
-  setText('pos-full-badge',posKeys.length); setHtml('positions-full-body',posHtml);
-
-  const sigHtml=renderSignals(d.signals);
-  setText('sig-badge',(d.signals||[]).length); setHtml('signals-body',sigHtml);
-  setText('sig-full-badge',(d.signals||[]).length); setHtml('signals-full-body',sigHtml);
-
-  const actHtml=renderActivity(d.activity);
-  setText('act-full-badge',(d.activity||[]).length); setHtml('activity-full-body',actHtml);
-
-  paintPerf(d);
-}}
-
-/* ── performance page ── */
-function paintPerf(d){{
-  const cap=d.paper_capital||25000, total=d.total_pnl||0;
-  setText('p-acct','$'+(cap+total).toLocaleString('en-US',{{minimumFractionDigits:2,maximumFractionDigits:2}}));
-  setMoney('p-total',total);
-  setMoney('p-daily',d.daily_pnl||0);
-  setText('p-wr',pct(d.win_rate||0));
-  setText('p-trades',d.trade_count||0);
-  setText('p-wins',d.win_count||0);
-  setText('p-losses',d.loss_count||0);
-  setMoney('p-best',d.best_trade||0);
-  setMoney('p-worst',d.worst_trade||0);
-  setMoney('p-avg',d.avg_pnl||0);
-  const cb=d.circuit_breaker||{{}};
-  const el=$('p-cb');
-  if(el){{el.textContent=cb.halted?('HALTED — '+(cb.halt_reason||'daily limit hit')):'Active — trading allowed';
-    el.className='cb-pill '+(cb.halted?'cb-halt':'cb-ok');}}
-}}
-
-/* ── router ── */
-const ROUTES=['overview','positions','signals','activity','performance','backtest','strategies','settings'];
-function go(){{
-  let r=location.hash.replace('#/','').replace('#','')||'overview';
-  if(!ROUTES.includes(r))r='overview';
-  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+r));
-  document.querySelectorAll('.nav-item').forEach(a=>a.classList.toggle('active',a.dataset.route===r));
-  if(r==='strategies')loadStrategies();
-  if(r==='settings')loadSettings();
-  const c=document.querySelector('.content');if(c)c.scrollTop=0;
-  const sb=$('sidebar');if(sb)sb.classList.remove('open');
-}}
-window.addEventListener('hashchange',go);
-const mb=$('menu-btn');if(mb)mb.addEventListener('click',()=>$('sidebar').classList.toggle('open'));
-
-/* ── backtest (historical simulation) ── */
-let btChart=null;
-async function runBacktest(){{
-  const sym=($('bt-symbol').value||'SPY').toUpperCase().trim();
-  const period=$('bt-period').value;
-  const st=$('bt-status'), res=$('bt-results');
-  st.textContent='Running simulation on '+sym+' ('+period+')…'; st.className='bt-status running';
-  $('bt-run').disabled=true;
-  try{{
-    const r=await fetch('/backtest/run',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{symbol:sym,period:period}})}});
-    const data=await r.json();
-    if(!r.ok||data.error)throw new Error(data.error||('HTTP '+r.status));
-    renderBacktest(data);
-    st.textContent='✓ Simulation complete — '+sym+' · '+period; st.className='bt-status ok';
-  }}catch(e){{st.textContent='✗ '+e.message; st.className='bt-status err'; if(res)res.style.display='none';}}
-  finally{{$('bt-run').disabled=false;}}
-}}
-function renderBacktest(d){{
-  const res=$('bt-results'); res.style.display='flex';
-  setText('bt-meta',(d.symbol||'')+' · '+(d.period||''));
-  const skip=new Set(['equity_curve','symbol','period','trades']);
-  let tiles='';
-  for(const k of Object.keys(d)){{
-    if(skip.has(k))continue;
-    let v=d[k],val=v;
-    if(typeof v==='number'){{val=/pct|rate|return|drawdown/i.test(k)?(v.toFixed(2)+'%'):(Number.isInteger(v)?v:v.toFixed(2));}}
-    const cls=(typeof v==='number'&&/pnl|return|profit/i.test(k))?(v>=0?'pos-green':'pos-red'):'';
-    tiles+='<div class="kpi kpi-blue"><div class="kpi-label">'+esc(k.replace(/_/g,' '))+'</div><div class="kpi-value '+cls+'" style="font-size:20px">'+esc(val)+'</div></div>';
-  }}
-  setHtml('bt-summary',tiles||'<p class="empty">No summary returned.</p>');
-  const ec=d.equity_curve||[];
-  if(btChart)btChart.destroy();
-  btChart=new Chart($('bt-chart').getContext('2d'),{{
-    type:'line',
-    data:{{labels:ec.map(p=>p.date),datasets:[{{label:'Equity',data:ec.map(p=>p.equity),
-      borderColor:'#5BA8FF',backgroundColor:'rgba(91,168,255,.13)',fill:true,tension:.25,borderWidth:2,pointRadius:0}}]}},
-    options:{{responsive:true,maintainAspectRatio:false,
-      plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:c=>'$'+c.parsed.y.toLocaleString()}}}}}},
-      scales:{{x:{{ticks:{{color:'#8A90A6',maxTicksLimit:8,font:{{family:"'JetBrains Mono',monospace",size:10}}}},grid:{{color:'rgba(255,255,255,.05)'}}}},
-        y:{{ticks:{{color:'#8A90A6',font:{{family:"'JetBrains Mono',monospace",size:10}},callback:v=>'$'+v.toLocaleString()}},grid:{{color:'rgba(255,255,255,.05)'}}}}}}
-    }}
-  }});
-}}
-const btBtn=$('bt-run');if(btBtn)btBtn.addEventListener('click',runBacktest);
-
-/* ── strategies ── */
-async function loadStrategies(){{
-  try{{
-    const d=await (await fetch('/strategies')).json();
-    let h='<div class="kpi-row">'
-      +'<div class="kpi kpi-green"><div class="kpi-label">Engine</div><div class="kpi-value" style="color:var(--green);font-size:20px">'+(d.is_active?'ACTIVE':'IDLE')+'</div></div>'
-      +'<div class="kpi kpi-blue"><div class="kpi-label">Total Signals</div><div class="kpi-value">'+(d.total_signals||0)+'</div></div>'
-      +'<div class="kpi kpi-teal"><div class="kpi-label">Call Signals</div><div class="kpi-value pos-green">'+(d.call_signals||0)+'</div></div>'
-      +'<div class="kpi kpi-red"><div class="kpi-label">Put Signals</div><div class="kpi-value pos-red">'+(d.put_signals||0)+'</div></div>'
-      +'</div>';
-    h+='<div class="card"><div class="card-hdr"><span class="card-title">Strategy Models</span><span class="badge">'+((d.strategies||[]).length)+'</span></div>'
-      +'<table><thead><tr><th>Strategy</th><th>Description</th><th>Signals</th><th>Trades</th><th>Win&nbsp;Rate</th><th>P&amp;L</th></tr></thead><tbody>';
-    for(const s of (d.strategies||[])){{
-      h+='<tr><td><b>'+esc(s.name)+'</b></td><td style="color:var(--muted);font-size:12px">'+esc(s.description)+'</td>'
-        +'<td>'+(s.signals||0)+'</td><td>'+(s.trades||0)+'</td><td>'+pct(s.win_rate||0)+'</td>'
-        +'<td class="'+((s.total_pnl||0)>=0?'pos-green':'pos-red')+'">'+money(s.total_pnl||0)+'</td></tr>';
-    }}
-    h+='</tbody></table></div>';
-    setHtml('strategies-body',h);
-  }}catch(e){{setHtml('strategies-body','<p class="empty">Failed to load strategies: '+esc(e.message)+'</p>');}}
-}}
-
-/* ── settings ── */
-async function loadSettings(){{
-  try{{
-    const st=await (await fetch('/status')).json();
-    let cfg={{}};
-    try{{cfg=await (await fetch('/config')).json();}}catch(e){{}}
-    const tiles=[['Mode',(st.mode||'—').toUpperCase()],['Broker',(st.broker||'—').toUpperCase()],
-      ['Market',st.market_open?'OPEN':'CLOSED'],['Database',st.database_connected?'Connected':'Error'],
-      ['Open Positions',st.open_positions==null?'—':st.open_positions],['Uptime',(st.uptime_s||0)+'s']];
-    setHtml('settings-tiles',tiles.map(t=>'<div class="kpi kpi-blue"><div class="kpi-label">'+t[0]+'</div><div class="kpi-value" style="font-size:18px">'+esc(t[1])+'</div></div>').join(''));
-    const raw=(cfg&&Object.keys(cfg).length)?cfg:st;
-    setText('settings-raw',JSON.stringify(raw,null,2));
-  }}catch(e){{setText('settings-raw','Failed to load settings: '+e.message);}}
-}}
-
-go();
-
-const es=new EventSource('/stream');
-['signals-body','signals-full-body','positions-body','positions-full-body'].forEach(id=>renderState($(id),'loading'));
-es.onmessage=ev=>{{try{{update(JSON.parse(ev.data))}}catch(err){{console.error(err)}}}};
-es.onerror=()=>{{['signals-body','signals-full-body','positions-body','positions-full-body'].forEach(id=>renderState($(id),'error','Stream disconnected — retrying…'));$('nav-time').textContent='reconnecting...';setTimeout(()=>location.reload(),5000)}};
-</script>
-</body></html>"""
-        return web.Response(text=html, content_type="text/html")
 
     def _mask(value: str) -> str:
         """Return a masked version of a secret string."""
@@ -1661,31 +955,71 @@ p.err{{color:#FF5D73;font-size:13px;margin:12px 0 0}}</style></head>
         resp.del_cookie(_auth.COOKIE_NAME)
         return resp
 
+    async def root_redirect(request: web.Request) -> web.Response:
+        raise web.HTTPFound("/dashboard/")
+
+    async def spa_handler(request: web.Request) -> web.Response:
+        web_root = _web_dir().resolve()
+        rel = request.path.lstrip("/")
+        target = (web_root / rel).resolve()
+        # Block path traversal outside the web root.
+        if web_root != target and web_root not in target.parents:
+            raise web.HTTPNotFound()
+        # 1) exact file (assets like icon.svg, *.js under /_next/)
+        if target.is_file():
+            return web.FileResponse(target)
+        # 2) route directory -> its index.html  (trailingSlash export layout)
+        index = target / "index.html"
+        if index.is_file():
+            return web.FileResponse(index)
+        # 3) <route>.html  (defensive: non-trailing-slash exports)
+        html_file = web_root / (rel.rstrip("/") + ".html")
+        if html_file.is_file() and (web_root in html_file.resolve().parents):
+            return web.FileResponse(html_file)
+        # 4) fallback to the exported 404 page
+        notfound = web_root / "404.html"
+        if notfound.is_file():
+            return web.FileResponse(notfound, status=404)
+        raise web.HTTPNotFound()
+
     # ── Router ──────────────────────────────────────────────────────────────
 
     app = web.Application(middlewares=[error_middleware, auth_middleware])
-    app.router.add_get("/health",           health)
-    app.router.add_get("/login",            login_page)
-    app.router.add_post("/login",           do_login)
-    app.router.add_post("/logout",          do_logout)
-    app.router.add_get("/signals",          get_signals)
-    app.router.add_get("/positions",        get_positions)
-    app.router.add_get("/metrics",          get_metrics)
-    app.router.add_get("/history",          get_history)
-    app.router.add_get("/status",           get_status)
-    app.router.add_get("/overview",         get_overview)
-    app.router.add_get("/quote/{symbol}",   get_quote)
-    app.router.add_get("/strategies",       get_strategies)
-    app.router.add_post("/reset",           post_reset)
-    app.router.add_post("/order",           post_order)
-    app.router.add_post("/backtest/run",    run_backtest_endpoint)
-    app.router.add_get("/config",                get_config_endpoint)
-    app.router.add_post("/config",               post_config_endpoint)
-    app.router.add_post("/config/test-email",    test_email_endpoint)
-    app.router.add_get("/circuit-breaker",       get_circuit_breaker)
-    app.router.add_get("/pending-signals",       get_pending_signals)
-    app.router.add_get("/stream",           sse_stream)
-    app.router.add_get("/",                 dashboard)
+
+    # Auth pages (root only — not under /api).
+    app.router.add_get("/login", login_page)
+    app.router.add_post("/login", do_login)
+    app.router.add_post("/logout", do_logout)
+
+    # JSON API — registered at the root path (Docker healthcheck, back-compat)
+    # AND under /api/* (what the frontend client calls). One source of truth.
+    api_routes = [
+        ("GET",  "/health",            health),
+        ("GET",  "/signals",           get_signals),
+        ("GET",  "/positions",         get_positions),
+        ("GET",  "/metrics",           get_metrics),
+        ("GET",  "/history",           get_history),
+        ("GET",  "/status",            get_status),
+        ("GET",  "/overview",          get_overview),
+        ("GET",  "/quote/{symbol}",    get_quote),
+        ("GET",  "/strategies",        get_strategies),
+        ("POST", "/reset",             post_reset),
+        ("POST", "/order",             post_order),
+        ("POST", "/backtest/run",      run_backtest_endpoint),
+        ("GET",  "/config",            get_config_endpoint),
+        ("POST", "/config",            post_config_endpoint),
+        ("POST", "/config/test-email", test_email_endpoint),
+        ("GET",  "/circuit-breaker",   get_circuit_breaker),
+        ("GET",  "/pending-signals",   get_pending_signals),
+        ("GET",  "/stream",            sse_stream),
+    ]
+    for method, path, handler in api_routes:
+        app.router.add_route(method, path, handler)
+        app.router.add_route(method, "/api" + path, handler)
+
+    # Static Next.js export.
+    app.router.add_get("/", root_redirect)
+    app.router.add_get("/{tail:.*}", spa_handler)
     return app
 
 
