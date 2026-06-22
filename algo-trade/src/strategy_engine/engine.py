@@ -70,7 +70,10 @@ class StrategyEngine:
 
         risk = config.get("risk", {})
         self._sl_mult: float = float(risk.get("stop_loss_atr_mult", 1.5))
-        self._tp_mult: float = float(risk.get("take_profit_atr_mult", 3.0))
+        self._tp_mult: float = float(risk.get("take_profit_atr_mult", 1.5))
+        # Option-premium exit thresholds (fraction of entry). Symmetric by default.
+        self._opt_sl_pct: float = float(risk.get("option_stop_loss_pct", 0.30))
+        self._opt_tp_pct: float = float(risk.get("option_take_profit_pct", 0.30))
 
     async def _compute_indicators(self, symbol: str):
         bars = await self._market.get_intraday_bars(
@@ -112,9 +115,9 @@ class StrategyEngine:
         entry = round(contract.ask * 1.01, 2)
         # We are LONG the option. Profit/loss is measured on option price, not
         # the underlying. ATR of the underlying cannot be applied to option premium —
-        # use fixed % of entry price instead (same for both directions).
-        stop = round(entry * (1 - self._sl_mult / 10), 2)  # sl_mult=1.5 → 15% stop
-        tp   = round(entry * (1 + self._tp_mult / 10), 2)  # tp_mult=3.0 → 30% target
+        # use a fixed % of entry price instead (same for both directions).
+        stop = round(entry * (1 - self._opt_sl_pct), 2)
+        tp   = round(entry * (1 + self._opt_tp_pct), 2)
 
         rationale = (
             f"RSI={rsi_val:.1f}, MACD_hist={macd_hist:.4f}, "
