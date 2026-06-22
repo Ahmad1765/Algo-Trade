@@ -85,14 +85,32 @@ async def _run_pipeline(
     log.info("pipeline starting", mode=mode)
     loop = asyncio.get_event_loop()
 
-    async def _run_all() -> None:
-        server_task = asyncio.ensure_future(
-            run_api_server(app, api_cfg.get("host", "0.0.0.0"), api_port)
-        )
-        all_tasks = manager._tasks + [server_task]
-        _attach_shutdown(loop, all_tasks)
+    # Shutdown is signalled by setting this event. The pipeline tasks are owned
+    # by the SessionManager (and may be swapped during a sim), so we do NOT
+    # gather them here — instead we keep the process alive on the event while
+    # the aiohttp runner serves in the background, then tear down on signal.
+    stop_event = asyncio.Event()
+
+    def _trigger_stop() -> None:
+        log.info("shutdown signal received")
+        stop_event.set()
+
+    for _sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            await asyncio.gather(server_task, return_exceptions=True)
+            loop.add_signal_handler(_sig, _trigger_stop)
+        except NotImplementedError:
+            # Windows: fall back to signal.signal for SIGINT (Ctrl+C)
+            try:
+                signal.signal(_sig, lambda *_: loop.call_soon_threadsafe(_trigger_stop))
+            except (OSError, ValueError):
+                pass
+
+    async def _run_all() -> None:
+        # Starts the aiohttp site and RETURNS immediately (it is not long-lived);
+        # the runner keeps serving while the loop stays alive on the event below.
+        await run_api_server(app, api_cfg.get("host", "0.0.0.0"), api_port)
+        try:
+            await stop_event.wait()
         except asyncio.CancelledError:
             pass
         finally:
