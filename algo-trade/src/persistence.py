@@ -354,11 +354,14 @@ class PositionStore:
             records = session.query(StrategyPerformanceRecord).all()
             return {
                 r.strategy_name: {
-                    "trades":    r.trades,
-                    "wins":      r.wins,
-                    "losses":    r.losses,
-                    "total_pnl": round(r.total_pnl, 2),
-                    "win_rate":  round(r.wins / r.trades, 3) if r.trades else 0.0,
+                    "trades":     r.trades,
+                    "wins":       r.wins,
+                    "losses":     r.losses,
+                    "total_pnl":  round(r.total_pnl, 2),
+                    "win_rate":   round(r.wins / r.trades, 3) if r.trades else 0.0,
+                    # Expectancy = average P&L per trade. This — not win rate — is
+                    # what decides profitability, so the engine ranks on it.
+                    "expectancy": round(r.total_pnl / r.trades, 4) if r.trades else 0.0,
                 }
                 for r in records
             }
