@@ -278,7 +278,16 @@ class MultiStrategyEngine:
         strategy = next((s for s in self._strategies if s.name == entry["strategy_name"]), None)
         if strategy:
             fresh_plan = await self._evaluate_strategy(strategy, symbol, bars, contracts)
-            if fresh_plan and fresh_plan.direction == entry["direction"]:
+            if fresh_plan is None:
+                # Transient miss: the trigger (e.g. a volume spike) did not recur
+                # on this bar. Keep the pending entry alive — confirmations are
+                # counted cumulatively within the expiry window, so a momentary
+                # gap must not throw the signal away (that was the root cause of
+                # signals being stuck and never executing).
+                log.debug("signal not reproduced this bar — still pending",
+                          symbol=symbol, strategy=entry["strategy_name"],
+                          confirmations=entry["confirmations"])
+            elif fresh_plan.direction == entry["direction"]:
                 entry["confirmations"] += 1
                 entry["plan"] = fresh_plan
                 log.debug("signal confirmation", symbol=symbol,
@@ -289,7 +298,9 @@ class MultiStrategyEngine:
                     del self._pending[symbol]
                     await self._publish_signal(fresh_plan)
             else:
-                log.debug("signal not confirmed — discarding", symbol=symbol,
+                # Opposite-direction signal — a genuine reversal invalidates the
+                # pending signal, so discard it.
+                log.debug("signal reversed — discarding", symbol=symbol,
                           strategy=entry["strategy_name"])
                 del self._pending[symbol]
         return True
@@ -349,7 +360,11 @@ class MultiStrategyEngine:
         plan = await self._select_best_plan(symbol, bars, event.contracts)
         if plan is None:
             return
-        self._queue_for_confirmation(symbol, plan)
+        if self._confirm_wait_bars <= 0:
+            # Confirmation disabled — execute on the first valid signal.
+            await self._publish_signal(plan)
+        else:
+            self._queue_for_confirmation(symbol, plan)
 
     # ------------------------------------------------------------------ #
 
