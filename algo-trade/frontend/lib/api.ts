@@ -61,6 +61,7 @@ export interface Signal {
 
 export interface SimStatus {
   active: boolean;
+  state?: "idle" | "loading" | "running" | "stopping" | "error";
   sim_time?: string;
   sim_time_iso?: string;
   speed?: number;
@@ -68,6 +69,7 @@ export interface SimStatus {
   sim_date?: string;
   day_complete?: boolean;
   market_open?: boolean;
+  error?: string | null;
 }
 
 export interface ConfigPayload {
@@ -170,6 +172,18 @@ export const api = {
       if (!r.ok) throw new Error(`sim/control ${r.status}`);
       return r.json() as Promise<SimStatus>;
     }),
+  simStart: (date: string, speed: number) =>
+    fetch(`${API_BASE}/sim/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, speed }),
+    }).then((r) => {
+      if (!r.ok && r.status !== 202) return r.json().then((b: { error?: string }) => { throw new Error(b.error ?? `sim/start ${r.status}`); });
+      return r.json() as Promise<SimStatus>;
+    }),
+  simStop: () =>
+    fetch(`${API_BASE}/sim/stop`, { method: "POST" })
+      .then((r) => { if (!r.ok) throw new Error(`sim/stop ${r.status}`); return r.json() as Promise<SimStatus>; }),
 };
 
 export interface MarketMover {

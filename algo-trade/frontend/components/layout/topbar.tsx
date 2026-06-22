@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { api, type Signal, type StatusResponse } from "@/lib/api";
 import { SimControls } from "@/components/layout/sim-controls";
+import { SimLauncher } from "@/components/dashboard/sim-launcher";
 
 const PAGE_META: Record<string, { title: string; description: string }> = {
   "/dashboard":  { title: "Dashboard",   description: "Your portfolio overview and live market data" },
@@ -153,6 +154,7 @@ export function Topbar({ masked, onToggleMask }: TopbarProps) {
 
       {/* Right: controls */}
       <div className="flex items-center gap-2 shrink-0">
+        <SimLauncher />
         <SimControls />
         {/* Demo mode badge */}
         {isDemo && (
