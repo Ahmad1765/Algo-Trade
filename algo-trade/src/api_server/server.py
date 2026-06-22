@@ -913,30 +913,66 @@ def create_app(
     # ── Sim clock endpoints ───────────────────────────────────────────────
 
     async def sim_status(request: web.Request) -> web.Response:
+        if session_manager is not None:
+            return web.json_response(session_manager.status())
         if ctx.sim_clock is None:
-            return web.json_response({"active": False})
+            return web.json_response({"active": False, "state": "idle"})
         return web.json_response(ctx.sim_clock.status())
 
-    async def sim_control(request: web.Request) -> web.Response:
-        if ctx.sim_clock is None:
-            return web.json_response({"error": "sim mode not active"}, status=409)
+    async def sim_start(request: web.Request) -> web.Response:
+        if session_manager is None:
+            return web.json_response({"error": "sim control unavailable"}, status=503)
         try:
             body = await request.json()
         except Exception:
             return web.json_response({"error": "invalid JSON"}, status=400)
+        from src.sim.calendar import validate_sim_date
+        try:
+            d = validate_sim_date(str(body.get("date", "")))
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=422)
+        try:
+            speed = float(body.get("speed", 60))
+            if speed <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return web.json_response({"error": "speed must be a positive number"}, status=422)
+        try:
+            await session_manager.start_sim(d, speed)
+        except RuntimeError as exc:
+            return web.json_response({"error": str(exc)}, status=409)
+        return web.json_response(session_manager.status(), status=202)
+
+    async def sim_stop(request: web.Request) -> web.Response:
+        if session_manager is None:
+            return web.json_response({"error": "sim control unavailable"}, status=503)
+        await session_manager.stop_sim()
+        return web.json_response(session_manager.status())
+
+    async def sim_control(request: web.Request) -> web.Response:
+        running = (session_manager is not None and session_manager.state == "running") or \
+                  (session_manager is None and ctx.sim_clock is not None)
+        if not running:
+            return web.json_response({"error": "no sim running"}, status=409)
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        clock = ctx.sim_clock
         action = body.get("action")
         if action == "pause":
-            ctx.sim_clock.pause()
+            clock.pause()
         elif action == "resume":
-            ctx.sim_clock.resume()
+            clock.resume()
         elif action == "set_speed":
             try:
-                ctx.sim_clock.set_speed(float(body.get("speed")))
+                clock.set_speed(float(body.get("speed")))
             except (TypeError, ValueError):
                 return web.json_response({"error": "speed must be a positive number"}, status=422)
         else:
             return web.json_response({"error": "action must be pause|resume|set_speed"}, status=422)
-        return web.json_response(ctx.sim_clock.status())
+        status = session_manager.status() if session_manager is not None else clock.status()
+        return web.json_response(status)
 
     # ── Middlewares ───────────────────────────────────────────────────────
     @web.middleware
@@ -1070,6 +1106,8 @@ p.err{{color:#FF5D73;font-size:13px;margin:12px 0 0}}</style></head>
         ("GET",  "/pending-signals",   get_pending_signals),
         ("GET",  "/stream",            sse_stream),
         ("GET",  "/sim/status",        sim_status),
+        ("POST", "/sim/start",         sim_start),
+        ("POST", "/sim/stop",          sim_stop),
         ("POST", "/sim/control",       sim_control),
     ]
     for method, path, handler in api_routes:

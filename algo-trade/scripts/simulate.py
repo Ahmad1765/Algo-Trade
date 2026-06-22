@@ -26,18 +26,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cli.main import _run_pipeline
 from src.config import load_config
 from src.market_adapter.replay_adapter import ReplayMarketAdapter
-from src.market_hours import _HOLIDAYS
+from src.sim.calendar import validate_sim_date as _validate
 from src.sim.clock import ET, SimClock
 from src.sim.data_loader import load_day
 
 
 def validate_sim_date(s: str) -> date:
-    d = date.fromisoformat(s)
-    if d.weekday() >= 5:
-        raise SystemExit(f"{s} is a weekend — pick a trading day.")
-    if d in _HOLIDAYS:
-        raise SystemExit(f"{s} is a NYSE holiday — pick a trading day.")
-    return d
+    try:
+        return _validate(s)
+    except ValueError as exc:
+        raise SystemExit(f"{exc} — pick a trading day.")
 
 
 async def _run(args: argparse.Namespace) -> None:
