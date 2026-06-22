@@ -106,8 +106,12 @@ class MultiStrategyEngine:
         if not stats:
             return {s.name: 0.0 for s in self._strategies}
 
-        pnls    = [v.get("total_pnl", 0.0) for v in stats.values()]
-        max_abs = max((abs(p) for p in pnls), default=1.0) or 1.0
+        # Rank strategies by EXPECTANCY (average P&L per trade), not win rate.
+        # A high-win-rate strategy with one catastrophic loss is unprofitable;
+        # expectancy is the only metric that tracks whether a strategy makes
+        # money. Normalise so the best/worst sit in a comparable range.
+        exps    = [v.get("expectancy", 0.0) for v in stats.values()]
+        max_abs = max((abs(e) for e in exps), default=1.0) or 1.0
 
         scores: Dict[str, float] = {}
         for s in self._strategies:
@@ -115,9 +119,7 @@ class MultiStrategyEngine:
             if row is None or row.get("trades", 0) == 0:
                 scores[s.name] = 0.0
             else:
-                win_rate = row.get("win_rate", 0.0)
-                norm_pnl = row.get("total_pnl", 0.0) / max_abs
-                scores[s.name] = 0.6 * win_rate + 0.4 * norm_pnl
+                scores[s.name] = row.get("expectancy", 0.0) / max_abs
         return scores
 
     def _pick_winner(

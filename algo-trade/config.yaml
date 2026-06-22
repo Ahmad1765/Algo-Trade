@@ -63,8 +63,8 @@ options_filter:
   max_dte: 30
   max_iv: 0.8
   max_otm_pct: 0.15
-  max_spread_pct: 0.1
-  min_dte: 1
+  max_spread_pct: 0.05   # was 0.10 — a 10% spread can't be overcome by the ~3% per-trade edge; cap the cost leak
+  min_dte: 3             # was 1 — avoid same-week theta burn dominating the small edge
   min_iv: 0.1
   min_open_interest: 500
   min_volume: 100
