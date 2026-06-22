@@ -87,7 +87,7 @@ class SessionManager:
             self._load_task.cancel()
             try:
                 await self._load_task
-            except BaseException:  # CancelledError or any exc from the task
+            except (asyncio.CancelledError, Exception):  # CancelledError or any exc from the task
                 pass
             self._load_task = None
 
@@ -132,6 +132,7 @@ class SessionManager:
             self._sim_db_path = db_path
             self._start_tasks(runnables)
             self.state = "running"
+            self._load_task = None
         except Exception as exc:  # noqa: BLE001 — surface + restore live
             log.error("sim start failed", error=str(exc))
             saved_error = str(exc)
