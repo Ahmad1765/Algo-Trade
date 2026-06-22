@@ -115,6 +115,7 @@ async def _run_pipeline(
     engine     = MultiStrategyEngine(
         market_adapter, chain_queue, signal_queue, config,
         position_store=position_store, notifier=notifier, tap_queue=tap_queue,
+        sim_clock=sim_clock,
     )
     order_mgr  = OrderManager(
         broker_adapter, risk_manager, signal_queue, mode, config,

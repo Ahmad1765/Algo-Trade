@@ -46,6 +46,7 @@ class MultiStrategyEngine:
         position_store=None,
         notifier=None,
         tap_queue: "Optional[asyncio.Queue[SignalEvent]]" = None,
+        sim_clock=None,
     ) -> None:
         self._market         = market_adapter
         self._chain_queue    = chain_queue
@@ -54,6 +55,10 @@ class MultiStrategyEngine:
         self._position_store = position_store
         self._notifier       = notifier
         self._config         = config
+        # When running a replay simulation, trading-hours gating must follow
+        # the simulated clock, not real wall-clock time (the sim runs while
+        # the real market is closed). None in live/paper mode → real time.
+        self._sim_clock      = sim_clock
         self._strategies: List[BaseStrategy] = ALL_STRATEGIES
         self._rr_index: int = 0
 
@@ -132,10 +137,15 @@ class MultiStrategyEngine:
         th        = self._config.get("trading_hours", {})
         start_str = th.get("start", "09:45")
         end_str   = th.get("end", "15:30")
-        # Always compare against Eastern Time regardless of server timezone
+        # Always compare against Eastern Time regardless of server timezone.
+        # In replay-simulation mode, use the simulated clock so trading-hours
+        # gating tracks the replayed day rather than real wall-clock time.
         try:
-            from src.market_hours import now_et
-            now = now_et().time()
+            if self._sim_clock is not None:
+                now = self._sim_clock.now().time()
+            else:
+                from src.market_hours import now_et
+                now = now_et().time()
         except Exception:
             now = datetime.now().time()
         try:
