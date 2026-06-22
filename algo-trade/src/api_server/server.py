@@ -85,6 +85,7 @@ def create_app(
     strategy_engine: Optional[Any] = None,
     sim_clock: Optional[Any] = None,
     ctx: Optional[Any] = None,
+    session_manager: Optional[Any] = None,
 ) -> web.Application:
     from src.runtime.context import RuntimeContext
     if ctx is None:

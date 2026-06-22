@@ -98,6 +98,12 @@ class SessionManager:
                   "signal_store", "action_store"):
             setattr(self.ctx, f, getattr(new_ctx, f))
 
+    def adopt_running(self, ctx: RuntimeContext, runnables: List[Callable[[], Awaitable]], state: str = "idle") -> None:
+        """Adopt an already-built pipeline as the current session (used at startup)."""
+        self._adopt(ctx)
+        self._start_tasks(runnables)
+        self.state = state
+
     # -- lifecycle -----------------------------------------------------------
 
     async def start_live(self) -> None:

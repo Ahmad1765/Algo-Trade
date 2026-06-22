@@ -5,7 +5,7 @@ Command-line entry point — production version.
 Features:
   - Auto-loads .env file
   - Graceful shutdown on Ctrl+C or SIGTERM
-  - Wires PositionStore and Notifier into all components
+  - Wires PositionStore and Notifier into all components via build_pipeline
   - Market-hours gate built into screener
 """
 
@@ -17,26 +17,15 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from src.api_server.server import create_app, run_api_server
 from src.config import load_config
-from src.events import SignalEvent
-from src.execution.base import create_broker_adapter
-from src.execution.order_manager import OrderManager
 from src.logger import get_logger
-from src.market_adapter.base import create_market_adapter
-from src.notifier import Notifier
-from src.options_fetcher import OptionsFetcher
-from src.persistence import PositionStore
-from src.risk_manager import RiskManager
-from src.screener import Screener
-from src.strategy_engine import MultiStrategyEngine
+from src.runtime.pipeline_builder import build_pipeline
+from src.runtime.session_manager import SessionManager
 
 log = get_logger(__name__)
-
-_signal_store: List[Dict] = []
-_action_store: List[Dict] = []
 
 
 def _attach_shutdown(loop: asyncio.AbstractEventLoop, tasks: list) -> None:
@@ -64,132 +53,49 @@ async def _run_pipeline(
     market_adapter: Any = None,
     sim_clock: Any = None,
 ) -> None:
-    if market_adapter is None:
-        market_adapter = create_market_adapter(config)
-    broker_adapter  = create_broker_adapter(config)
-    risk_manager    = RiskManager(config)
-    position_store  = PositionStore()
-    notifier        = Notifier(config)
-
-    # Load UI-saved config overrides from DB (Railway-safe persistence)
-    db_overrides = position_store.get_config_overrides()
-    if db_overrides:
-        from src.config import update_config as _update_cfg
-        _update_cfg(db_overrides)
-        log.info("loaded config overrides from database")
-
-    # Note: positions are re-registered with the risk manager inside
-    # order_mgr.recover_open_positions() — no need to register here.
-    if position_store.open_count:
-        log.info("restored positions from database", count=position_store.open_count)
-
-    # Restore recent signals from DB
-    existing_signals = position_store.get_signals(limit=200)
-    _signal_store.extend(existing_signals)
-    if existing_signals:
-        log.info("restored signal history from database", count=len(existing_signals))
-
-    # Restore recent activity from DB
-    existing_actions = position_store.get_actions(limit=200)
-    _action_store.extend(existing_actions)
-    if existing_actions:
-        log.info("restored action history from database", count=len(existing_actions))
-
-    # Log system startup as an action
-    position_store.add_action("SYSTEM_STARTED", None, f"Pipeline started in {mode} mode", {"mode": mode})
-    from datetime import datetime, timezone as _tz
-    _action_store.append({
-        "event": "SYSTEM_STARTED", "symbol": None,
-        "detail": f"Pipeline started in {mode} mode",
-        "data": {"mode": mode},
-        "ts": datetime.now(_tz.utc).isoformat(),
-    })
-
-    candidate_queue: asyncio.Queue = asyncio.Queue(maxsize=20)
-    chain_queue:     asyncio.Queue = asyncio.Queue(maxsize=50)
-    signal_queue:    asyncio.Queue = asyncio.Queue(maxsize=20)
-    tap_queue:       asyncio.Queue = asyncio.Queue(maxsize=50)
-
-    screener   = Screener(market_adapter, candidate_queue, config)
-    fetcher    = OptionsFetcher(broker_adapter, candidate_queue, chain_queue, config)
-    engine     = MultiStrategyEngine(
-        market_adapter, chain_queue, signal_queue, config,
-        position_store=position_store, notifier=notifier, tap_queue=tap_queue,
-        sim_clock=sim_clock,
-    )
-    order_mgr  = OrderManager(
-        broker_adapter, risk_manager, signal_queue, mode, config,
-        position_store=position_store, notifier=notifier,
-        action_store=_action_store, market_adapter=market_adapter,
+    # Build the initial pipeline (live, or sim when an adapter/clock is injected).
+    ctx, runnables = await build_pipeline(
+        config, mode, market_adapter=market_adapter, sim_clock=sim_clock,
     )
 
-    # Re-arm stop monitors for positions that survived a restart.
-    await order_mgr.recover_open_positions()
-
-    # Signal tap: observe signals on the dedicated tap_queue (separate from order manager).
-    async def _signal_tap() -> None:
-        while True:
-            try:
-                sig: SignalEvent = await asyncio.wait_for(tap_queue.get(), timeout=1.0)
-            except asyncio.TimeoutError:
-                continue
-            except asyncio.CancelledError:
-                return
-            plan = sig.trade_plan
-            data = {
-                "symbol":    plan.symbol,
-                "direction": plan.direction.value,
-                "strike":    plan.contract.strike,
-                "expiry":    plan.contract.expiry,
-                "entry":     plan.entry_limit,
-                "stop":      plan.stop_loss,
-                "target":    plan.take_profit,
-                "size":      plan.position_size,
-                "rationale": plan.rationale,
-                "strategy":  plan.strategy_name,
-                "ts":        sig.timestamp.isoformat(),
-            }
-            _signal_store.append(data)
-            position_store.add_signal(data)  # Persist to DB
-            if len(_signal_store) > 200:
-                _signal_store.pop(0)
+    manager = SessionManager(config, ctx)
+    # Adopt the just-built pipeline as the manager's current session.
+    manager.adopt_running(ctx, runnables, state="running" if sim_clock is not None else "idle")
 
     api_cfg = config.get("api_server", {})
     # Railway injects PORT; respect it over the config file value.
     api_port = int(os.environ.get("PORT") or os.environ.get("API_PORT") or api_cfg.get("port", 8181))
     from src.api_server import auth as _auth
     _auth.assert_auth_config()
-    app = create_app(risk_manager, _signal_store, position_store, market_adapter, _action_store, broker_adapter, strategy_engine=engine, sim_clock=sim_clock)
+    app = create_app(
+        ctx.risk_manager, ctx.signal_store, ctx.position_store, ctx.market_adapter,
+        ctx.action_store, ctx.broker_adapter, strategy_engine=ctx.strategy_engine,
+        sim_clock=ctx.sim_clock, ctx=ctx, session_manager=manager,
+    )
 
     log.info("pipeline starting", mode=mode)
-
     loop = asyncio.get_event_loop()
-    task_list = []
 
     async def _run_all() -> None:
-        tasks = [
-            asyncio.ensure_future(screener.run()),
-            asyncio.ensure_future(fetcher.run()),
-            asyncio.ensure_future(engine.run()),
-            asyncio.ensure_future(order_mgr.run()),
-            asyncio.ensure_future(_signal_tap()),
-            asyncio.ensure_future(
-                run_api_server(app, api_cfg.get("host", "0.0.0.0"), api_port)
-            ),
-        ]
-        task_list.extend(tasks)
-        _attach_shutdown(loop, tasks)
+        server_task = asyncio.ensure_future(
+            run_api_server(app, api_cfg.get("host", "0.0.0.0"), api_port)
+        )
+        all_tasks = manager._tasks + [server_task]
+        _attach_shutdown(loop, all_tasks)
         try:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for result in results:
-                if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
-                    log.error("pipeline task failed", error=str(result), exc_info=result)
+            await asyncio.gather(server_task, return_exceptions=True)
         except asyncio.CancelledError:
             pass
         finally:
-            log.info("shutting down — closing adapters")
-            await market_adapter.close()
-            await broker_adapter.close()
+            log.info("shutting down — cancelling pipeline")
+            await manager._cancel_tasks()
+            try:
+                if ctx.market_adapter:
+                    await ctx.market_adapter.close()
+                if ctx.broker_adapter:
+                    await ctx.broker_adapter.close()
+            except Exception:
+                pass
 
     await _run_all()
 
