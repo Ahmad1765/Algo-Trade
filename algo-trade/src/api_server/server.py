@@ -958,7 +958,7 @@ def create_app(
             body = await request.json()
         except Exception:
             return web.json_response({"error": "invalid JSON"}, status=400)
-        clock = ctx.sim_clock
+        clock = session_manager.ctx.sim_clock if session_manager is not None else ctx.sim_clock
         action = body.get("action")
         if action == "pause":
             clock.pause()
