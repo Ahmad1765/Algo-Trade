@@ -53,6 +53,15 @@ async def _run_pipeline(
     market_adapter: Any = None,
     sim_clock: Any = None,
 ) -> None:
+    # Restore any config overrides the user saved via the dashboard.
+    from src.persistence import PositionStore
+    from src.config import update_config
+    _ov_store = PositionStore()
+    _db_overrides = _ov_store.get_config_overrides()
+    if _db_overrides:
+        update_config(_db_overrides)
+        log.info("loaded config overrides from database")
+
     # Build the initial pipeline (live, or sim when an adapter/clock is injected).
     ctx, runnables = await build_pipeline(
         config, mode, market_adapter=market_adapter, sim_clock=sim_clock,

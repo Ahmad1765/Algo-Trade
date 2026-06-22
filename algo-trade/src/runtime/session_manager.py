@@ -72,7 +72,18 @@ class SessionManager:
     # -- task helpers --------------------------------------------------------
 
     def _start_tasks(self, runnables: List[Callable[[], Awaitable]]) -> None:
-        self._tasks = [asyncio.ensure_future(r()) for r in runnables]
+        self._tasks = []
+        for r in runnables:
+            t = asyncio.ensure_future(r())
+            t.add_done_callback(self._log_task_exception)
+            self._tasks.append(t)
+
+    def _log_task_exception(self, task: asyncio.Task) -> None:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            log.error("pipeline task failed", error=str(exc))
 
     async def _cancel_tasks(self) -> None:
         for t in self._tasks:
