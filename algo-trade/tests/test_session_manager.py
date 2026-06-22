@@ -127,3 +127,29 @@ def test_stop_when_idle_is_noop():
         assert m.state == "idle"
         await m._cancel_tasks()
     asyncio.run(go())
+
+
+def test_stop_during_loading_cancels_load_and_restores_idle():
+    async def go():
+        async def _slow_loader(sim_date, **kw):
+            await asyncio.sleep(5)
+            return {"AAPL": [{"datetime": "2026-06-17T13:30:00+00:00",
+                               "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}]}
+
+        m = _mgr(loader=_slow_loader)
+        await m.start_live()
+        await m.start_sim(date(2026, 6, 17), 60.0)
+        # state must be loading before the slow loader completes
+        assert m.state == "loading"
+        captured_load_task = m._load_task
+        # Stop while still loading — must interrupt the load and restore idle
+        await m.stop_sim()
+        assert m.state == "idle", f"expected idle, got {m.state!r}"
+        assert m.ctx.mode == "live", f"expected ctx.mode='live', got {m.ctx.mode!r}"
+        # The load task must be finished (done/cancelled), not still pending
+        assert captured_load_task is not None
+        assert captured_load_task.done(), "load task should be done after stop_sim"
+        # Internal reference must be cleared
+        assert m._load_task is None
+        await m._cancel_tasks()  # cleanup live tasks
+    asyncio.run(go())

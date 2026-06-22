@@ -81,6 +81,16 @@ class SessionManager:
             await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks = []
 
+    async def _cancel_load_task(self) -> None:
+        """Cancel and await the background load task if present; set to None."""
+        if self._load_task is not None:
+            self._load_task.cancel()
+            try:
+                await self._load_task
+            except BaseException:  # CancelledError or any exc from the task
+                pass
+            self._load_task = None
+
     def _adopt(self, new_ctx: RuntimeContext) -> None:
         """Copy new_ctx fields onto the shared ctx so server handlers stay valid."""
         for f in ("mode", "risk_manager", "position_store", "market_adapter",
@@ -139,9 +149,22 @@ class SessionManager:
         return result, None
 
     async def stop_sim(self) -> None:
+        if self.state == "loading":
+            # Cancel the background load task; live pipeline is still running.
+            self.state = "stopping"
+            await self._cancel_load_task()
+            # The live pipeline tasks were left untouched during loading; if
+            # _load_and_run_sim had already torn them down before the cancel,
+            # also cancel any sim tasks it may have started.
+            await self._cancel_tasks()
+            self._cleanup_sim_db()
+            await self.start_live()
+            self.state = "idle"
+            return
         if self.state != "running":
             return
         self.state = "stopping"
+        await self._cancel_load_task()
         await self._cancel_tasks()
         self._cleanup_sim_db()
         await self.start_live()
