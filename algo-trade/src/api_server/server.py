@@ -84,19 +84,32 @@ def create_app(
     broker_adapter: Optional[Any] = None,
     strategy_engine: Optional[Any] = None,
     sim_clock: Optional[Any] = None,
+    ctx: Optional[Any] = None,
 ) -> web.Application:
-    _action_store: List[Dict] = action_store if action_store is not None else []
+    from src.runtime.context import RuntimeContext
+    if ctx is None:
+        ctx = RuntimeContext(
+            mode="live",
+            risk_manager=risk_manager,
+            position_store=position_store,
+            market_adapter=market_adapter,
+            strategy_engine=strategy_engine,
+            broker_adapter=broker_adapter,
+            sim_clock=sim_clock,
+            signal_store=signal_store if signal_store is not None else [],
+            action_store=action_store if action_store is not None else [],
+        )
 
     def _market_open_now() -> bool:
-        return sim_clock.is_open() if sim_clock is not None else is_market_open()
+        return ctx.sim_clock.is_open() if ctx.sim_clock is not None else is_market_open()
 
     def _market_time_str() -> str:
-        src_dt = sim_clock.now() if sim_clock is not None else now_et()
+        src_dt = ctx.sim_clock.now() if ctx.sim_clock is not None else now_et()
         return src_dt.strftime("%Y-%m-%d %H:%M:%S ET")
 
     async def health(request: web.Request) -> web.Response:
         cfg = get_config()
-        db_ok = position_store.check_connection() if position_store else False
+        db_ok = ctx.position_store.check_connection() if ctx.position_store else False
         return web.json_response({
             "status": "ok",
             "uptime_s": round(time.time() - _START_TIME, 1),
@@ -112,10 +125,10 @@ def create_app(
             limit = max(1, min(500, int(request.rel_url.query.get("limit", _MAX_SIGNALS))))
         except (TypeError, ValueError):
             limit = _MAX_SIGNALS
-        return web.json_response(signal_store[-limit:])
+        return web.json_response(ctx.signal_store[-limit:])
 
     async def get_positions(request: web.Request) -> web.Response:
-        positions = position_store.get_positions() if position_store else {}
+        positions = ctx.position_store.get_positions() if ctx.position_store else {}
         total_cost = 0.0
         enriched: Dict[str, Any] = {}
         for sym, pos in positions.items():
@@ -136,10 +149,10 @@ def create_app(
         })
 
     async def get_metrics(request: web.Request) -> web.Response:
-        open_count = position_store.open_count if position_store else 0
+        open_count = ctx.position_store.open_count if ctx.position_store else 0
         return web.json_response({
             "uptime_s": round(time.time() - _START_TIME, 1),
-            "signal_count": len(signal_store),
+            "signal_count": len(ctx.signal_store),
             "open_positions": open_count,
             "market_open": _market_open_now(),
         })
@@ -149,20 +162,20 @@ def create_app(
             limit = max(1, min(500, int(request.rel_url.query.get("limit", 50))))
         except (TypeError, ValueError):
             limit = 50
-        return web.json_response(list(reversed(_action_store[-limit:])))
+        return web.json_response(list(reversed(ctx.action_store[-limit:])))
 
     async def get_status(request: web.Request) -> web.Response:
         from src.daily_circuit_breaker import DailyCircuitBreaker
         cfg        = get_config()
-        open_count = position_store.open_count if position_store else 0
-        db_ok      = position_store.check_connection() if position_store else False
-        pnl        = position_store.get_pnl_summary() if position_store else {
+        open_count = ctx.position_store.open_count if ctx.position_store else 0
+        db_ok      = ctx.position_store.check_connection() if ctx.position_store else False
+        pnl        = ctx.position_store.get_pnl_summary() if ctx.position_store else {
             "total_pnl": 0.0, "trade_count": 0, "win_count": 0, "loss_count": 0,
             "win_rate": 0.0, "avg_pnl": 0.0, "best_trade": 0.0, "worst_trade": 0.0,
         }
         paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 25000.0))
-        cb_status = DailyCircuitBreaker(cfg, position_store).status
-        pending_count = strategy_engine.get_pending_count() if strategy_engine else 0
+        cb_status = DailyCircuitBreaker(cfg, ctx.position_store).status
+        pending_count = ctx.strategy_engine.get_pending_count() if ctx.strategy_engine else 0
         return web.json_response({
             # system
             "uptime_s":          round(time.time() - _START_TIME, 1),
@@ -173,8 +186,8 @@ def create_app(
             "database_connected": db_ok,
             # live counts
             "open_positions":    open_count,
-            "signal_count":      len(signal_store),
-            "action_count":      len(_action_store),
+            "signal_count":      len(ctx.signal_store),
+            "action_count":      len(ctx.action_store),
             "pending_signals":   pending_count,
             # paper trading capital
             "paper_capital":     paper_capital,
@@ -183,7 +196,7 @@ def create_app(
             # circuit breaker
             "circuit_breaker":   cb_status,
             # recent activity (newest first)
-            "recent_actions":    list(reversed(_action_store[-30:])),
+            "recent_actions":    list(reversed(ctx.action_store[-30:])),
         })
 
     async def sse_stream(request: web.Request) -> web.StreamResponse:
@@ -199,27 +212,27 @@ def create_app(
         try:
             while True:
                 cfg        = get_config()
-                open_count = position_store.open_count if position_store else 0
-                db_ok      = position_store.check_connection() if position_store else False
-                positions  = position_store.get_positions() if position_store else {}
-                sigs       = signal_store[-20:] if signal_store else []
-                acts       = list(reversed(_action_store[-30:])) if _action_store else []
-                pnl        = position_store.get_pnl_summary() if position_store else {
+                open_count = ctx.position_store.open_count if ctx.position_store else 0
+                db_ok      = ctx.position_store.check_connection() if ctx.position_store else False
+                positions  = ctx.position_store.get_positions() if ctx.position_store else {}
+                sigs       = ctx.signal_store[-20:] if ctx.signal_store else []
+                acts       = list(reversed(ctx.action_store[-30:])) if ctx.action_store else []
+                pnl        = ctx.position_store.get_pnl_summary() if ctx.position_store else {
                     "total_pnl": 0.0, "trade_count": 0, "win_count": 0,
                     "loss_count": 0, "win_rate": 0.0, "avg_pnl": 0.0,
                     "best_trade": 0.0, "worst_trade": 0.0,
                 }
-                daily_pnl  = position_store.get_daily_pnl() if position_store else 0.0
+                daily_pnl  = ctx.position_store.get_daily_pnl() if ctx.position_store else 0.0
                 paper_capital = float(cfg.get("paper_trading", {}).get("initial_capital", 25000.0))
-                cb = DailyCircuitBreaker(cfg, position_store).status
-                pending_count = strategy_engine.get_pending_count() if strategy_engine else 0
+                cb = DailyCircuitBreaker(cfg, ctx.position_store).status
+                pending_count = ctx.strategy_engine.get_pending_count() if ctx.strategy_engine else 0
 
                 payload = _json.dumps({
                     "market_open":    _market_open_now(),
                     "market_time":    _market_time_str(),
                     "mode":           cfg.get("mode", "paper"),
                     "open_positions": open_count,
-                    "signal_count":   len(signal_store),
+                    "signal_count":   len(ctx.signal_store),
                     "pending_signals": pending_count,
                     "db_ok":          db_ok,
                     "uptime_s":       round(time.time() - _START_TIME),
@@ -253,7 +266,7 @@ def create_app(
     async def get_config_endpoint(request: web.Request) -> web.Response:
         # Merge DB overrides (Railway-safe) on top of base config
         base = get_config()
-        db_overrides = position_store.get_config_overrides() if position_store else {}
+        db_overrides = ctx.position_store.get_config_overrides() if ctx.position_store else {}
         cfg = deep_merge(base, db_overrides) if db_overrides is not None else base
         broker = cfg.get("broker", {})
         wb = broker.get("webull", {})
@@ -439,8 +452,8 @@ def create_app(
             return web.json_response({"ok": True, "changed": False})
 
         # 1. Persist to DB (survives Railway redeployments)
-        if position_store:
-            position_store.merge_config_overrides(updates)
+        if ctx.position_store:
+            ctx.position_store.merge_config_overrides(updates)
 
         # 2. Apply to in-memory config immediately (no restart needed)
         update_config(updates)
@@ -457,7 +470,7 @@ def create_app(
         from email.mime.text import MIMEText as _MIMEText
 
         base = get_config()
-        db_overrides = position_store.get_config_overrides() if position_store else {}
+        db_overrides = ctx.position_store.get_config_overrides() if ctx.position_store else {}
         cfg   = deep_merge(base, db_overrides) if db_overrides is not None else base
         email = cfg.get("notifications", {}).get("email", {})
 
@@ -594,11 +607,11 @@ def create_app(
 
     async def get_overview(request: web.Request) -> web.Response:
         """Top gainers/losers from live market data."""
-        if not market_adapter:
+        if not ctx.market_adapter:
             return web.json_response({"error": "market adapter unavailable"}, status=503)
         try:
-            gainers = await market_adapter.get_top_gainers(limit=5)
-            losers  = await market_adapter.get_top_losers(limit=5)
+            gainers = await ctx.market_adapter.get_top_gainers(limit=5)
+            losers  = await ctx.market_adapter.get_top_losers(limit=5)
             return web.json_response({
                 "gainers": [
                     {"symbol": q.symbol, "price": q.price,
@@ -623,11 +636,11 @@ def create_app(
             return web.json_response({"error": "symbol required"}, status=400)
         range_str = request.rel_url.query.get("range", "1d")
         interval  = request.rel_url.query.get("interval", "1m")
-        if not market_adapter:
+        if not ctx.market_adapter:
             return web.json_response({"error": "market adapter unavailable"}, status=503)
         try:
-            bars  = await market_adapter.get_historical_bars(symbol, range_str, interval)
-            quote = await market_adapter.get_quote(symbol)
+            bars  = await ctx.market_adapter.get_historical_bars(symbol, range_str, interval)
+            quote = await ctx.market_adapter.get_quote(symbol)
             return web.json_response({
                 "symbol":        symbol,
                 "current_price": quote.price,
@@ -662,12 +675,12 @@ def create_app(
 
     async def get_strategies(request: web.Request) -> web.Response:
         """All 10 strategies with live signal counts and DB performance stats."""
-        total = len(signal_store)
-        calls = sum(1 for s in signal_store if s.get("direction") == "CALL")
+        total = len(ctx.signal_store)
+        calls = sum(1 for s in ctx.signal_store if s.get("direction") == "CALL")
         puts  = total - calls
         seen: dict = {}
         sig_counts: dict = {}
-        for s in signal_store:
+        for s in ctx.signal_store:
             sym = s.get("symbol")
             if sym:
                 seen[sym] = True
@@ -675,7 +688,7 @@ def create_app(
             if sname:
                 sig_counts[sname] = sig_counts.get(sname, 0) + 1
 
-        perf = position_store.get_strategy_scores() if position_store else {}
+        perf = ctx.position_store.get_strategy_scores() if ctx.position_store else {}
 
         strategies = []
         for name, description in _STRATEGY_META:
@@ -705,7 +718,7 @@ def create_app(
         if _CONFIG_API_KEY:
             if not hmac.compare_digest(request.headers.get("X-Api-Key", ""), _CONFIG_API_KEY):
                 return web.json_response({"error": "unauthorized"}, status=401)
-        if not position_store:
+        if not ctx.position_store:
             return web.json_response({"error": "no persistence store"}, status=503)
         try:
             from src.persistence import (
@@ -713,7 +726,7 @@ def create_app(
                 ActionRecord, StrategyPerformanceRecord,
             )
             from datetime import datetime, timezone as _tz
-            with position_store.SessionLocal() as session:
+            with ctx.position_store.SessionLocal() as session:
                 session.query(PositionRecord).delete()
                 session.query(CooldownRecord).delete()
                 session.query(SignalRecord).delete()
@@ -721,18 +734,18 @@ def create_app(
                 session.query(StrategyPerformanceRecord).delete()
                 session.commit()
 
-            signal_store.clear()
-            _action_store.clear()
+            ctx.signal_store.clear()
+            ctx.action_store.clear()
 
-            if broker_adapter is not None and hasattr(broker_adapter, "reset"):
-                broker_adapter.reset()
+            if ctx.broker_adapter is not None and hasattr(ctx.broker_adapter, "reset"):
+                ctx.broker_adapter.reset()
 
             reset_entry = {
                 "event": "SYSTEM_RESET", "symbol": None,
                 "detail": "Paper trading data reset by user",
                 "data": {}, "ts": datetime.now(_tz.utc).isoformat(),
             }
-            _action_store.append(reset_entry)
+            ctx.action_store.append(reset_entry)
             log.info("paper trading data reset by user")
             return web.json_response({"ok": True})
         except Exception as exc:
@@ -741,7 +754,7 @@ def create_app(
 
     async def run_backtest_endpoint(request: web.Request) -> web.Response:
         """Run a real backtest using Yahoo Finance historical data."""
-        if not market_adapter:
+        if not ctx.market_adapter:
             return web.json_response({"error": "market adapter unavailable"}, status=503)
         try:
             body = await request.json()
@@ -762,7 +775,7 @@ def create_app(
 
         try:
             import asyncio as _aio
-            bars = await market_adapter.get_historical_bars(symbol, range_str, interval)
+            bars = await ctx.market_adapter.get_historical_bars(symbol, range_str, interval)
             if not bars or len(bars) < 30:
                 return web.json_response(
                     {"error": f"Insufficient historical data for {symbol} ({len(bars)} bars)"},
@@ -847,9 +860,9 @@ def create_app(
             "data":   {"side": side, "qty": qty, "price": fill_price, "orderType": order_type},
             "ts":     datetime.now(_tz.utc).isoformat(),
         }
-        _action_store.append(entry)
-        if position_store:
-            position_store.add_action(
+        ctx.action_store.append(entry)
+        if ctx.position_store:
+            ctx.position_store.add_action(
                 event="ORDER_FILLED",
                 symbol=symbol,
                 detail=detail,
@@ -863,16 +876,16 @@ def create_app(
     async def get_circuit_breaker(request: web.Request) -> web.Response:
         from src.daily_circuit_breaker import DailyCircuitBreaker
         cfg = get_config()
-        cb  = DailyCircuitBreaker(cfg, position_store)
+        cb  = DailyCircuitBreaker(cfg, ctx.position_store)
         return web.json_response(cb.status)
 
     # ── Pending signals (awaiting confirmation) ─────────────────────────────
 
     async def get_pending_signals(request: web.Request) -> web.Response:
         from datetime import timezone as _tz
-        if strategy_engine is None:
+        if ctx.strategy_engine is None:
             return web.json_response({"pending": []})
-        pending = getattr(strategy_engine, "_pending", {})
+        pending = getattr(ctx.strategy_engine, "_pending", {})
         now = __import__("datetime").datetime.now(_tz.utc)
         expire_min = float(
             get_config().get("confirmation", {}).get("expire_minutes", 10)
@@ -888,7 +901,7 @@ def create_app(
                 "strategy":             entry.get("strategy_name", ""),
                 "direction":            entry.get("direction").value if entry.get("direction") else "",
                 "confirmations":        entry.get("confirmations", 0),
-                "confirmations_needed": getattr(strategy_engine, "_confirm_wait_bars", 2),
+                "confirmations_needed": getattr(ctx.strategy_engine, "_confirm_wait_bars", 2),
                 "strike":               plan.contract.strike if plan else None,
                 "entry":                plan.entry_limit if plan else None,
                 "first_seen_at":        first_seen.isoformat() if first_seen else None,
@@ -899,12 +912,12 @@ def create_app(
     # ── Sim clock endpoints ───────────────────────────────────────────────
 
     async def sim_status(request: web.Request) -> web.Response:
-        if sim_clock is None:
+        if ctx.sim_clock is None:
             return web.json_response({"active": False})
-        return web.json_response(sim_clock.status())
+        return web.json_response(ctx.sim_clock.status())
 
     async def sim_control(request: web.Request) -> web.Response:
-        if sim_clock is None:
+        if ctx.sim_clock is None:
             return web.json_response({"error": "sim mode not active"}, status=409)
         try:
             body = await request.json()
@@ -912,17 +925,17 @@ def create_app(
             return web.json_response({"error": "invalid JSON"}, status=400)
         action = body.get("action")
         if action == "pause":
-            sim_clock.pause()
+            ctx.sim_clock.pause()
         elif action == "resume":
-            sim_clock.resume()
+            ctx.sim_clock.resume()
         elif action == "set_speed":
             try:
-                sim_clock.set_speed(float(body.get("speed")))
+                ctx.sim_clock.set_speed(float(body.get("speed")))
             except (TypeError, ValueError):
                 return web.json_response({"error": "speed must be a positive number"}, status=422)
         else:
             return web.json_response({"error": "action must be pause|resume|set_speed"}, status=422)
-        return web.json_response(sim_clock.status())
+        return web.json_response(ctx.sim_clock.status())
 
     # ── Middlewares ───────────────────────────────────────────────────────
     @web.middleware
