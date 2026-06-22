@@ -34,6 +34,8 @@ class _IndParams(NamedTuple):
 class _RiskParams(NamedTuple):
     sl_mult: float
     tp_mult: float
+    opt_sl_pct: float
+    opt_tp_pct: float
 
 
 _params_cache: Dict[int, Tuple[_IndParams, _RiskParams]] = {}
@@ -67,7 +69,9 @@ def _get_params(config: Dict[str, Any]) -> Tuple[_IndParams, _RiskParams]:
             ),
             _RiskParams(
                 sl_mult=float(risk.get("stop_loss_atr_mult", 1.5)),
-                tp_mult=float(risk.get("take_profit_atr_mult", 3.0)),
+                tp_mult=float(risk.get("take_profit_atr_mult", 1.5)),
+                opt_sl_pct=float(risk.get("option_stop_loss_pct", 0.30)),
+                opt_tp_pct=float(risk.get("option_take_profit_pct", 0.30)),
             ),
         )
         # Evict old entries to prevent unbounded growth after config reloads.
@@ -148,16 +152,15 @@ def _build_plan(
     direction: SignalDirection,
     contract: OptionContract,
     atr_val: float,
-    sl_mult: float,
-    tp_mult: float,
+    sl_pct: float,
+    tp_pct: float,
     rationale: str,
 ) -> TradePlan:
     entry = round(contract.ask * 1.01, 2)
     # We are LONG the option (buying calls or puts).
     # Profit = option price rises. Loss = option price drops.
-    # This is true for both directions — stop and TP are symmetric.
-    sl_pct = 0.50  # exit if option loses 50% of entry value
-    tp_pct = 1.00  # exit if option doubles (2:1 R:R)
+    # Thresholds come from config; default symmetric (1:1) because the signals
+    # carry no proven directional edge (see scripts/edge_research.py).
     stop = round(entry * (1 - sl_pct), 2)
     tp   = round(entry * (1 + tp_pct), 2)
     return TradePlan(
@@ -223,7 +226,7 @@ class RSIMACDStrategy(BaseStrategy):
         if contract is None:
             return None
         rationale = f"[{self.name}] RSI={rsi_val:.1f}, MACD_hist={macd_res.histogram:.4f}"
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 2: EMA Crossover ─────────────────────────────────────────────────
@@ -259,7 +262,7 @@ class EMACrossStrategy(BaseStrategy):
         if contract is None:
             return None
         rationale = f"[{self.name}] EMA9={ema9[-1]:.2f} crossed EMA21={ema21[-1]:.2f}"
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 3: Bollinger Band Breakout ───────────────────────────────────────
@@ -299,7 +302,7 @@ class BollingerBandBreakoutStrategy(BaseStrategy):
             return None
         rationale = (f"[{self.name}] price={last_close:.2f} "
                      f"broke band upper={upper:.2f} lower={lower:.2f}")
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 4: Momentum ──────────────────────────────────────────────────────
@@ -335,7 +338,7 @@ class MomentumStrategy(BaseStrategy):
         if contract is None:
             return None
         rationale = f"[{self.name}] {self._LOOKBACK}-bar change={change*100:.2f}%"
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 5: Mean Reversion ────────────────────────────────────────────────
@@ -376,7 +379,7 @@ class MeanReversionStrategy(BaseStrategy):
         if contract is None:
             return None
         rationale = f"[{self.name}] z-score={z:.2f}, SMA20={sma:.2f}"
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 6: VWAP Deviation ────────────────────────────────────────────────
@@ -415,7 +418,7 @@ class VWAPStrategy(BaseStrategy):
         if contract is None:
             return None
         rationale = f"[{self.name}] VWAP={vwap_val:.2f}, deviation={deviation*100:.2f}%"
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 7: RSI Aggressive ───────────────────────────────────────────────
@@ -449,7 +452,7 @@ class RSIAggressiveStrategy(BaseStrategy):
         if contract is None:
             return None
         rationale = f"[{self.name}] RSI={rsi_val:.1f} (thresholds 80/20)"
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 8: Trend Following ───────────────────────────────────────────────
@@ -487,7 +490,7 @@ class TrendFollowingStrategy(BaseStrategy):
             return None
         rationale = (f"[{self.name}] SMA20={sma20:.2f} vs SMA50={sma50:.2f}, "
                      f"RSI={rsi_val:.1f}")
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 9: Volatility Breakout ──────────────────────────────────────────
@@ -522,7 +525,7 @@ class VolatilityBreakoutStrategy(BaseStrategy):
             return None
         rationale = (f"[{self.name}] range={last_range:.2f} "
                      f"> {self._ATR_MULT}×ATR={atr_val:.2f}")
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Strategy 10: MACD Line Crossover ─────────────────────────────────────────
@@ -562,7 +565,7 @@ class MACDCrossStrategy(BaseStrategy):
             return None
         rationale = (f"[{self.name}] MACD={macd_line[-1]:.4f} "
                      f"crossed signal={sig_line[-1]:.4f}")
-        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.sl_mult, risk.tp_mult, rationale)
+        return _build_plan(self.name, symbol, direction, contract, atr_val, risk.opt_sl_pct, risk.opt_tp_pct, rationale)
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────

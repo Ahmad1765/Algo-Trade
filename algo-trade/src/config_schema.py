@@ -58,15 +58,23 @@ class RiskConfig(BaseModel):
     max_open_positions: int = Field(5, ge=1)
     pdt_equity_threshold: float = Field(25000.0, ge=0)
     stop_loss_atr_mult: float = Field(1.5, gt=0)
-    take_profit_atr_mult: float = Field(3.0, gt=0)
+    take_profit_atr_mult: float = Field(1.5, gt=0)
+    # Option-premium exit thresholds (fraction of entry price). Default symmetric
+    # (1:1 reward:risk): with no proven directional edge, an asymmetric target
+    # only guarantees the nearer stop is hit more often. See edge_research.py.
+    option_stop_loss_pct: float = Field(0.30, gt=0, lt=1.0)
+    option_take_profit_pct: float = Field(0.30, gt=0, lt=1.0)
+    # Favor CALLs: the only statistically robust signal in the data is the
+    # market's long-run upward drift, so do not fight it by default.
+    long_bias: bool = Field(True)
 
     @field_validator("take_profit_atr_mult")
     @classmethod
-    def tp_gt_sl(cls, v: float, info) -> float:
+    def tp_ge_sl(cls, v: float, info) -> float:
         sl = info.data.get("stop_loss_atr_mult", 1.5)
-        if v <= sl:
+        if v < sl:
             raise ValueError(
-                f"take_profit_atr_mult ({v}) must exceed stop_loss_atr_mult ({sl})"
+                f"take_profit_atr_mult ({v}) must be >= stop_loss_atr_mult ({sl})"
             )
         return v
 

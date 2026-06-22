@@ -41,3 +41,6 @@ CLAUDE.md
 
 # Replay simulation cached market data
 sim_data/
+
+# Edge-research cached daily bars (regenerable)
+data/history/

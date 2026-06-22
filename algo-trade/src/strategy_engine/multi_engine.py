@@ -70,6 +70,11 @@ class MultiStrategyEngine:
         self._confirm_wait_bars: int    = int(conf.get("wait_bars", 2))
         self._confirm_expire_min: float = float(conf.get("expire_minutes", 10))
 
+        # Long bias: the only statistically robust signal in historical data is
+        # the market's upward drift (see scripts/edge_research.py). When enabled,
+        # prefer CALL candidates and only take PUTs when no CALL is available.
+        self._long_bias: bool = bool(config.get("risk", {}).get("long_bias", True))
+
         # symbol → {plan, strategy_name, direction, confirmations, first_seen_at}
         self._pending: Dict[str, _PENDING_T] = {}
 
@@ -329,6 +334,14 @@ class MultiStrategyEngine:
                 candidates = aligned
             # If no aligned signals, allow counter-trend signals through —
             # individual stocks can diverge strongly from SPY (e.g. earnings, sector news).
+
+        # Long bias: only the upward drift is a proven edge, so favor CALLs.
+        # Drop PUTs when at least one CALL candidate exists; keep PUTs only when
+        # there is no long alternative this bar.
+        if self._long_bias:
+            calls = [c for c in candidates if c.direction == SignalDirection.CALL]
+            if calls:
+                candidates = calls
 
         return self._pick_winner(candidates, self._get_scores())
 
