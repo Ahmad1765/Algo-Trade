@@ -9,13 +9,7 @@
 
 ---
 
-## 🚀 Dashboard
-
-
-![AlgoTrade dashboard](docs/screenshot-dashboard.png)
-
-
-### Deploy your own
+## 🚀 Deploy your own
 
 1. Fork this repo and connect it to Render — the included [`render.yaml`](../render.yaml) is a one-click Blueprint.
 2. Create a free [Supabase](https://supabase.com) project and copy its **direct** connection string (port `5432`, then append `?sslmode=require`).
