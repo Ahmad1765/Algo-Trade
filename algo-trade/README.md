@@ -9,14 +9,11 @@
 
 ---
 
-## 🚀 Live Demo
+## 🚀 Dashboard
 
-**Live dashboard:** <https://algo-trade-dashboard.onrender.com> &nbsp;·&nbsp; paper-trading only
 
 ![AlgoTrade dashboard](docs/screenshot-dashboard.png)
 
-> The live demo runs in **paper mode** — orders are simulated, no real money moves.
-> Access is password-protected. The free Render dyno may take ~30s to wake on first hit.
 
 ### Deploy your own
 
